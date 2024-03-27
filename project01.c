@@ -10,4 +10,5 @@ main(int argc, char *argv[])
   printf(1, "My student id is 2019040591\n");
   printf(1, "My pid is %d\n", pid);
   printf(1, "My gpid is %d\n", gpid);
+  exit();
 }
