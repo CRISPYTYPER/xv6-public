@@ -7,6 +7,7 @@ main(int argc, char *argv[])
 {
   int pid = getpid();
   int gpid = getgpid();
+  // TODO: -1(error) handling
   printf(1, "My student id is 2019040591\n");
   printf(1, "My pid is %d\n", pid);
   printf(1, "My gpid is %d\n", gpid);
