@@ -6,7 +6,8 @@ int
 main(int argc, char *argv[])
 {
   int pid = getpid();
-  int ppid = getppid();
-  printf(1, "Current PID : %d\n", pid);
-  printf(1, "Parent PID : %d\n", ppid);
+  int gpid = getgpid();
+  printf(1, "My student id is 2019040591\n");
+  printf(1, "My pid is %d\n", pid);
+  printf(1, "My gpid is %d\n", gpid);
 }
