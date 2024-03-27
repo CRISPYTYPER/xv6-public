@@ -7,6 +7,6 @@ main(int argc, char *argv[])
 {
   int pid = getpid();
   int ppid = getppid();
-  printf(1, "Parent PID : %d\n", pid);
-  printf(1, "Grand Parent PID : %d\n", ppid);
+  printf(1, "Current PID : %d\n", pid);
+  printf(1, "Parent PID : %d\n", ppid);
 }
