@@ -89,3 +89,11 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+// make for practice!!
+// make yield() as system call
+int
+sys_yield(void) {
+  yield();
+  return 0;
+}
