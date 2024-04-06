@@ -107,6 +107,7 @@ extern int sys_myfunction(void);
 extern int sys_getppid(void);
 extern int sys_getgpid(void);
 extern int sys_yield(void);
+extern int sys_print_ticks_pid_name(void);
 
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -134,6 +135,7 @@ static int (*syscalls[])(void) = {
 [SYS_getppid] sys_getppid,
 [SYS_getgpid] sys_getgpid,
 [SYS_yield] sys_yield,
+[SYS_print_ticks_pid_name] sys_print_ticks_pid_name,
 };
 
 void

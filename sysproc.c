@@ -90,10 +90,18 @@ sys_uptime(void)
   return xticks;
 }
 
+// lab 04 practice 1
 // make for practice!!
 // make yield() as system call
 void
 sys_yield(void) {
   yield();
+  return;
+}
+
+// lab 04 practice 2
+void
+sys_print_ticks_pid_name(void) {
+  cprintf("ticks = %d, pid = %d, name = %s\n", ticks, myproc()->pid, myproc()->name);
   return;
 }

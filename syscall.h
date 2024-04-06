@@ -24,3 +24,4 @@
 #define SYS_getppid 23
 #define SYS_getgpid 24
 #define SYS_yield 25
+#define SYS_print_ticks_pid_name 26

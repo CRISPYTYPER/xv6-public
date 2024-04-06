@@ -27,6 +27,7 @@ int myfunction(char*);
 int getppid(void);
 int getgpid(void);
 void yield(void);
+void print_ticks_pid_name(void);
 
 // ulib.c
 int stat(const char*, struct stat*);
