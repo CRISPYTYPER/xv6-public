@@ -92,8 +92,8 @@ sys_uptime(void)
 
 // make for practice!!
 // make yield() as system call
-int
+void
 sys_yield(void) {
   yield();
-  return 0;
+  return;
 }
