@@ -330,6 +330,7 @@ scheduler(void)
     // Enable interrupts on this processor.
     sti();
 
+
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
@@ -588,4 +589,23 @@ unmonopolize(void)
   /**
    * 독점적 스케줄링을 중지하고 기존의 MLFQ part로 돌아갑니다.
   */
+}
+
+// Additionally added system calls by me
+
+// Initialize mlfq(extern struct)
+void
+mlfqinit()
+{
+  mlfq_t mlfq; // allocates memory for mlfq(extern struct)
+
+  int i, j;
+
+  for (i = 0; i < NQUEUE; i++){
+    mlfq.qlengths[i] = 0;  // initialize number of processes in each queue
+    mlfq.timequantums[i] = 2 * (i + 1);  // set time quantums
+    for (j = 0; j < NPROC; j++) {
+      mlfq.queues[i][j] = 0;  // set each as NULL
+    }
+  }
 }
