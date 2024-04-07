@@ -12,3 +12,6 @@
 #define NBUF         (MAXOPBLOCKS*3)  // size of disk block cache
 #define FSSIZE       1000  // size of file system in blocks
 
+// for Project 02
+#define NQUEUE       4   // number of queues for scheduling (4 level feedback queue)
+
