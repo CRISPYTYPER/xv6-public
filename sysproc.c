@@ -102,6 +102,8 @@ sys_yield(void) {
 // lab 04 practice 2
 void
 sys_print_ticks_pid_name(void) {
+  acquire(&tickslock);
   cprintf("ticks = %d, pid = %d, name = %s\n", ticks, myproc()->pid, myproc()->name);
+  release(&tickslock);
   return;
 }
