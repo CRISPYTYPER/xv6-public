@@ -12,6 +12,16 @@ struct {
   struct proc proc[NPROC];
 } ptable;
 
+// For Project02
+// Multi Level Feedback Queue structure
+struct {
+  struct spinlock lock;
+  struct proc* queues[NQUEUE][NPROC];  // Process queues (4 levels)
+  uint qlengths[NQUEUE];               // Count of processes in each queue
+  uint timequantums[NQUEUE];            // Time quantum of each process
+  // uint totalpnum;                       // Total number of processes in all queues   
+} mlfq;
+
 static struct proc *initproc;
 
 int nextpid = 1;
@@ -123,7 +133,7 @@ userinit(void)
   struct proc *p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
 
-  p = allocproc();
+  p = allocproc(); // 여기서 ptable내의 빈 공간에 들어감
   
   initproc = p;
   if((p->pgdir = setupkvm()) == 0)
@@ -149,6 +159,9 @@ userinit(void)
   acquire(&ptable.lock);
 
   p->state = RUNNABLE;
+  // For project 02
+  // Insert into L0 queue
+  putintoL0(p);
 
   release(&ptable.lock);
 }
@@ -215,6 +228,9 @@ fork(void)
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
+
+  // Added for Project 02
+  putintoL0(np);  // add the new process np into L0 queue 
 
   release(&ptable.lock);
 
@@ -597,7 +613,7 @@ unmonopolize(void)
 void
 mlfqinit()
 {
-  mlfq_t mlfq; // allocates memory for mlfq(extern struct)
+  initlock(&mlfq.lock, "mlfq");
 
   int i, j;
 
@@ -608,4 +624,17 @@ mlfqinit()
       mlfq.queues[i][j] = 0;  // set each as NULL
     }
   }
+}
+
+// Append a new process into L0 queue
+void
+putintoL0(struct proc *p)
+{
+  struct proc *np = p;  // new process to put into L0
+
+  acquire(&mlfq.lock);  // acquire lock of mlfq structure
+  uint indexofL0 = mlfq.qlengths[0];  // index of L0 to insert 
+  mlfq.queues[0][indexofL0] = p;  // append pointer of the new process into L0
+  mlfq.qlengths[0] += 1;  // increment length of L0 by 1
+  release(&mlfq.lock);  // release lock of mlfq structure
 }
