@@ -27,7 +27,7 @@ main(void)
   consoleinit();   // console hardware
   uartinit();      // serial port
   pinit();         // process table
-  mlfqinit();       // multi level feedback queue
+  mlfqinit();      // multi level feedback queue (Project 02)
   tvinit();        // trap vectors
   binit();         // buffer cache
   fileinit();      // file table
