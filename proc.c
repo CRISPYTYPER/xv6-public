@@ -160,8 +160,8 @@ userinit(void)
 
   p->state = RUNNABLE;
   // For project 02
-  // Insert into L0 queue
-  putintoL0(p);
+  p->usedtq = 0; // initialize used timequantum of the process to 0
+  putintoL0(p);  // Insert into L0 queue
 
   release(&ptable.lock);
 }
@@ -230,6 +230,7 @@ fork(void)
   np->state = RUNNABLE;
 
   // Added for Project 02
+  np->usedtq = 0; // initialize used timequantum of the process to 0
   putintoL0(np);  // add the new process np into L0 queue 
 
   release(&ptable.lock);

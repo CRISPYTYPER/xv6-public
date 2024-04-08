@@ -49,6 +49,8 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  // For Project 02
+  uint usedtq;                 // Used time quantum
 };
 
 // Process memory is laid out contiguously, low addresses first:
@@ -56,14 +58,3 @@ struct proc {
 //   original data and bss
 //   fixed-size stack
 //   expandable heap
-
-// For Project02
-// Multi Level Feedback Queue structure
-typedef struct {
-  struct proc* queues[NQUEUE][NPROC];  // Process queues (4 levels)
-  uint qlengths[NQUEUE];               // Count of processes in each queue
-  uint timequantums[NQUEUE];            // Time quantum of each process
-  // uint totalpnum;                       // Total number of processes in all queues   
-} mlfq_t;
-
-extern mlfq_t mlfq;
