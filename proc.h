@@ -59,3 +59,15 @@ struct proc {
 //   original data and bss
 //   fixed-size stack
 //   expandable heap
+
+// For Project02
+// Multi Level Feedback Queue structure
+typedef struct {
+  struct spinlock lock;
+  struct proc* queues[NQUEUE][NPROC];  // Process queues (4 levels)
+  uint qlengths[NQUEUE];               // Count of processes in each queue
+  uint timequantums[NQUEUE];            // Time quantum of each process
+  // uint totalpnum;                       // Total number of processes in all queues   
+} mlfq_t;
+
+extern mlfq_t mlfq;

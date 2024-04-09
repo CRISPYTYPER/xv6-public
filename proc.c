@@ -12,16 +12,6 @@ struct {
   struct proc proc[NPROC];
 } ptable;
 
-// For Project02
-// Multi Level Feedback Queue structure
-struct {
-  struct spinlock lock;
-  struct proc* queues[NQUEUE][NPROC];  // Process queues (4 levels)
-  uint qlengths[NQUEUE];               // Count of processes in each queue
-  uint timequantums[NQUEUE];            // Time quantum of each process
-  // uint totalpnum;                       // Total number of processes in all queues   
-} mlfq;
-
 static struct proc *initproc;
 
 int nextpid = 1;
@@ -614,6 +604,8 @@ unmonopolize(void)
 void
 mlfqinit()
 {
+  mlfq_t mlfq; // allocates memory for mlfq(extern struct)
+
   initlock(&mlfq.lock, "mlfq");
 
   int i, j;
@@ -637,5 +629,6 @@ putintoL0(struct proc *p)
   uint indexofL0 = mlfq.qlengths[0];  // index of L0 to insert 
   mlfq.queues[0][indexofL0] = p;  // append pointer of the new process into L0
   mlfq.qlengths[0] += 1;  // increment length of L0 by 1
+  p->qnum = 0;  // Set current queue number as 0 (L0)
   release(&mlfq.lock);  // release lock of mlfq structure
 }
