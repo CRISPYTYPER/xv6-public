@@ -50,6 +50,7 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
   // For Project 02
+  int qnum;                    // Indicates which queue is it in (-1 if not in MLFQ)
   uint usedtq;                 // Used time quantum
 };
 
