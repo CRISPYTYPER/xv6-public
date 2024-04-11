@@ -621,16 +621,49 @@ mlfqinit()
   mlfq.curq = 0;        // set current queue number as 0 (L0)
 }
 
+// Generic function to append a process into a given Queue level
+void _putintomlfq(struct proc *p, int targetqueue){
+  struct proc *np = p;  // new process to put into L{targetqueue}
+  uint indextoput;  // index of L{taretqueue} to put a new process
+
+  acquire(&mlfq.lock);  // acquire lock of mlfq structure
+  if(mlfq.curq == targetqueue){ // L{targetqueue}의 프로세스들이 실행되고 있던 상황이면
+    indextoput = (mlfq.curprocidx + mlfq.qlengths[targetqueue]) % NPROC;
+  } else { // 다른 큐의 프로세스들이 실행되고 있던 중이었으면
+    indextoput = mlfq.qlengths[targetqueue]; // idx 0 부터 프로세스들이 차곡차곡 담겨있는 상황
+  }
+  mlfq.queues[targetqueue][indextoput] = p;  // append pointer of the new process into L{targetqueue}
+  mlfq.qlengths[targetqueue] += 1;  // increment num of processes in L{targetqueue} by 1
+  release(&mlfq.lock);  // release lock of mlfq structure
+  
+  p->qnum = targetqueue;  // Set current queue number as targetqueue (L{targetqueue})
+  p->usedtq = 0;  // Set used tick value to 0.
+}
+
 // Append a new process into L0 queue
 void
 putintoL0(struct proc *p)
 {
-  struct proc *np = p;  // new process to put into L0
+  _putintomlfq(p, 0);
+}
 
-  acquire(&mlfq.lock);  // acquire lock of mlfq structure
-  uint indexofL0 = mlfq.qlengths[0];  // index of L0 to insert 
-  mlfq.queues[0][indexofL0] = p;  // append pointer of the new process into L0
-  mlfq.qlengths[0] += 1;  // increment length of L0 by 1
-  p->qnum = 0;  // Set current queue number as 0 (L0)
-  release(&mlfq.lock);  // release lock of mlfq structure
+// Append a new process into L1 queue
+void
+putintoL1(struct proc *p)
+{
+  _putintomlfq(p, 1);
+}
+
+// Append a new process into L2 queue
+void
+putintoL2(struct proc *p)
+{
+  _putintomlfq(p, 2);
+}
+
+// Append a new process into L3 queue
+void
+putintoL3(struct proc *p)
+{
+  _putintomlfq(p, 3);
 }

@@ -58,6 +58,8 @@ trap(struct trapframe *tf)
     if(cpuid() == 0){
       acquire(&tickslock);
       ticks++;
+      // For Project 02
+      myproc()->usedtq += 1;  // Increment timequantum of running process by 1
       wakeup(&ticks);
       release(&tickslock);
     }
@@ -107,11 +109,42 @@ trap(struct trapframe *tf)
   if(myproc() && myproc()->killed && (tf->cs&3) == DPL_USER)
     exit();
 
+  // // Force process to give up CPU on clock tick.
+  // // If interrupts were on while locks held, would need to check nlock.
+  // if(myproc() && myproc()->state == RUNNING &&
+  //    tf->trapno == T_IRQ0+IRQ_TIMER)
+  //   yield();
+
+  // For Project 02
   // Force process to give up CPU on clock tick.
   // If interrupts were on while locks held, would need to check nlock.
   if(myproc() && myproc()->state == RUNNING &&
-     tf->trapno == T_IRQ0+IRQ_TIMER)
-    yield();
+     tf->trapno == T_IRQ0+IRQ_TIMER){
+      acquire(&mlfq.lock);
+      if(myproc()->usedtq == mlfq.timequantums[myproc()->qnum]){ // 시간 다 사용
+      release(&mlfq.lock);
+        switch(myproc()->qnum){  // the queue number where myproc() is in
+          case 0: // L0 큐에서 실행되던 프로세스인 경우
+            if(myproc()->pid % 2 == 1){ // pid가 홀수인 프로세스들은 L1 큐로 내려가고, tq 초기화
+              putintoL1(myproc());
+            } else{  // pid가 짝수인 프로세스들은 L2 큐로 내려가고, tq 초기화
+              putintoL2(myproc());
+            }
+            break;
+          case 1:  // L1 큐에서 실행되던 프로세스인 경우
+            putintoL3(myproc());
+            break;
+          case 2:  // L2 큐에서 실행되던 프로세스인 경우
+            putintoL3(myproc());
+            break;
+          default:
+            panic("invalid pid value!!(trap.c)");
+          }
+        }
+    
+      yield();  // give up the CPU held to myproc()
+     }
+    
 
   // Check if the process has been killed since we yielded
   if(myproc() && myproc()->killed && (tf->cs&3) == DPL_USER)

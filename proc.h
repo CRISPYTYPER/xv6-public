@@ -73,3 +73,9 @@ typedef struct {
 } mlfq_t;
 
 extern mlfq_t mlfq;
+
+// to use these in trap.c
+void putintoL0(struct proc *p);
+void putintoL1(struct proc *p);
+void putintoL2(struct proc *p);
+void putintoL3(struct proc *p);
