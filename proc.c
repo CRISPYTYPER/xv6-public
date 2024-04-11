@@ -318,7 +318,52 @@ wait(void)
   }
 }
 
-//PAGEBREAK: 42
+// PAGEBREAK: 42
+// Per-CPU process scheduler.
+// Each CPU calls scheduler() after setting itself up.
+// Scheduler never returns.  It loops, doing:
+//  - choose a process to run
+//  - swtch to start running that process
+//  - eventually that process transfers control
+//      via swtch back to the scheduler.
+// void
+// scheduler(void)
+// {
+//   struct proc *p;
+//   struct cpu *c = mycpu();
+//   c->proc = 0;
+  
+//   for(;;){
+//     // Enable interrupts on this processor.
+//     sti();
+
+
+//     // Loop over process table looking for process to run.
+//     acquire(&ptable.lock);
+//     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+//       if(p->state != RUNNABLE)
+//         continue;
+
+//       // Switch to chosen process.  It is the process's job
+//       // to release ptable.lock and then reacquire it
+//       // before jumping back to us.
+//       c->proc = p;
+//       switchuvm(p);
+//       p->state = RUNNING;
+
+//       swtch(&(c->scheduler), p->context);
+//       switchkvm();
+
+//       // Process is done running for now.
+//       // It should have changed its p->state before coming back.
+//       c->proc = 0;
+//     }
+//     release(&ptable.lock);
+
+//   }
+// }
+
+// PAGEBREAK: 42
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
 // Scheduler never returns.  It loops, doing:
@@ -338,12 +383,15 @@ scheduler(void)
     sti();
 
 
-    // Loop over process table looking for process to run.
-    acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
+    // Loop over mlfq.queues looking for process to run.
+    acquire(&mlfq.lock);
+    int i;
+    for(i = 0; i < NQUEUE; i++){ // loop through L0 ~ L3
+      if(mlfq.qlengths[i] == 0)
         continue;
 
+      // TODO: 프로세스가 들어있는 큐를 L0에서부터 시작해 찾았다면 curprocidx번째 프로세스를 실행해야함.
+      
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
@@ -358,7 +406,7 @@ scheduler(void)
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
-    release(&ptable.lock);
+    release(&mlfq.lock);
 
   }
 }
@@ -613,25 +661,20 @@ mlfqinit()
   for (i = 0; i < NQUEUE; i++){
     mlfq.qlengths[i] = 0;  // initialize number of processes in each queue
     mlfq.timequantums[i] = 2 * (i + 1);  // set time quantums
+    mlfq.curprocidx[i] = 0;  // set idx to search as 0
     for (j = 0; j < NPROC; j++) {
       mlfq.queues[i][j] = 0;  // set each as NULL
     }
   }
-  mlfq.curprocidx = 0;  // set idx to search as 0
-  mlfq.curq = 0;        // set current queue number as 0 (L0)
 }
 
 // Generic function to append a process into a given Queue level
 void _putintomlfq(struct proc *p, int targetqueue){
   struct proc *np = p;  // new process to put into L{targetqueue}
-  uint indextoput;  // index of L{taretqueue} to put a new process
 
   acquire(&mlfq.lock);  // acquire lock of mlfq structure
-  if(mlfq.curq == targetqueue){ // L{targetqueue}의 프로세스들이 실행되고 있던 상황이면
-    indextoput = (mlfq.curprocidx + mlfq.qlengths[targetqueue]) % NPROC;
-  } else { // 다른 큐의 프로세스들이 실행되고 있던 중이었으면
-    indextoput = mlfq.qlengths[targetqueue]; // idx 0 부터 프로세스들이 차곡차곡 담겨있는 상황
-  }
+  uint indextoput = (mlfq.curprocidx[targetqueue] + mlfq.qlengths[targetqueue]) % NPROC; // index of L{taretqueue} to put a new process
+  
   mlfq.queues[targetqueue][indextoput] = p;  // append pointer of the new process into L{targetqueue}
   mlfq.qlengths[targetqueue] += 1;  // increment num of processes in L{targetqueue} by 1
   release(&mlfq.lock);  // release lock of mlfq structure
