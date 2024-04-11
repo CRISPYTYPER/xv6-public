@@ -617,6 +617,8 @@ mlfqinit()
       mlfq.queues[i][j] = 0;  // set each as NULL
     }
   }
+  mlfq.curprocidx = 0;  // set idx to search as 0
+  mlfq.curq = 0;        // set current queue number as 0 (L0)
 }
 
 // Append a new process into L0 queue
