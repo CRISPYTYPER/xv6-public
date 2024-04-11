@@ -67,7 +67,9 @@ typedef struct {
   struct proc* queues[NQUEUE][NPROC];  // Process queues (4 levels)
   uint qlengths[NQUEUE];               // Count of processes in each queue
   uint timequantums[NQUEUE];            // Time quantum of each process
-  // uint totalpnum;                       // Total number of processes in all queues   
+  uint curprocidx;                      // Current idx in a queue where to run(increment by 1 as proceeds)
+  uint curq;                             // Current queue number where to run
+  // uint totalpnum;                     // Total number of processes in all queues   
 } mlfq_t;
 
 extern mlfq_t mlfq;
