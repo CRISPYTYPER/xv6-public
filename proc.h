@@ -52,6 +52,7 @@ struct proc {
   // For Project 02
   int qnum;                    // Indicates which queue is it in (-1 if not in MLFQ)
   uint usedtq;                 // Used time quantum
+  uint priority;               // Priority for L3 queue
 };
 
 // Process memory is laid out contiguously, low addresses first:
@@ -67,7 +68,7 @@ typedef struct {
   struct proc* queues[NQUEUE][NPROC];  // Process queues (4 levels)
   uint qlengths[NQUEUE];               // Count of processes in each queue
   uint timequantums[NQUEUE];            // Time quantum of each process
-  uint curprocidx[NQUEUE];              // Current idx in each queue where to run(increment by 1 as proceeds)
+  uint curprocidx[NQUEUE];              // Current idx in each queue where to run(increment by 1 as proceeds. not used in L3)
   // uint totalpnum;                     // Total number of processes in all queues   
 } mlfq_t;
 

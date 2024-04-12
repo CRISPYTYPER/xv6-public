@@ -151,6 +151,8 @@ userinit(void)
   p->state = RUNNABLE;
   // For project 02
   p->usedtq = 0; // initialize used timequantum of the process to 0
+  p->priority = 0; // initialize priority of the process to 0
+
   putintoL0(p);  // Insert into L0 queue
 
   release(&ptable.lock);
@@ -221,6 +223,7 @@ fork(void)
 
   // Added for Project 02
   np->usedtq = 0; // initialize used timequantum of the process to 0
+  np->priority = 0; // initialize priority of the process to 0
   putintoL0(np);  // add the new process np into L0 queue 
 
   release(&ptable.lock);
@@ -389,8 +392,15 @@ scheduler(void)
     for(i = 0; i < NQUEUE; i++){ // loop through L0 ~ L3
       if(mlfq.qlengths[i] == 0)
         continue;
-
-      // TODO: 프로세스가 들어있는 큐를 L0에서부터 시작해 찾았다면 curprocidx번째 프로세스를 실행해야함.
+      if(i == 3){ // L3의 경우 삽입시 그냥 priority가 높은 프로세스가 배열 맨 앞에 오도록 만들어 놓음.
+        p = mlfq.queues[i][0]; // L3 큐의 맨 앞의 프로세스가 제일 priority가 높음
+      }else{  // L0, L1, L2 큐의 경우 RR 정책을 따르므로 curprocidx 사용
+        // 프로세스가 들어있는 큐를 L0에서부터 시작해 찾았다면 해당 큐의 curprocidx번째 프로세스를 실행해야함.
+        p = mlfq.queues[i][mlfq.curprocidx[i]]; // 해당 큐에서 제일 우선순위가 높았던(제일 먼저 들어왔던)프로세스를 p에 담음
+        mlfq.curprocidx[i] += 1; // 다음에는 그 다음번 프로세스 부터 실행하면 됨
+        if(mlfq.curprocidx[i] == NPROC)
+          mlfq.curprocidx[i] = 0;  // 리스트의 범위를 벗어났으면 다시 0으로 만듬.
+      }
       
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
@@ -405,6 +415,9 @@ scheduler(void)
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
+
+      // TODO: Check if we need to adjust the process's priority based on its behavior.(L3)
+      break;  // use break to iterate from L0 (from the beginning)
     }
     release(&mlfq.lock);
 
@@ -675,7 +688,7 @@ void _putintomlfq(struct proc *p, int targetqueue){
   acquire(&mlfq.lock);  // acquire lock of mlfq structure
   uint indextoput = (mlfq.curprocidx[targetqueue] + mlfq.qlengths[targetqueue]) % NPROC; // index of L{taretqueue} to put a new process
   
-  mlfq.queues[targetqueue][indextoput] = p;  // append pointer of the new process into L{targetqueue}
+  mlfq.queues[targetqueue][indextoput] = np;  // append pointer of the new process into L{targetqueue}
   mlfq.qlengths[targetqueue] += 1;  // increment num of processes in L{targetqueue} by 1
   release(&mlfq.lock);  // release lock of mlfq structure
   
@@ -705,8 +718,33 @@ putintoL2(struct proc *p)
 }
 
 // Append a new process into L3 queue
+// 프로세스간 Priority의 내림차순이 보장되도록 삽입함. 
 void
 putintoL3(struct proc *p)
 {
-  _putintomlfq(p, 3);
+  struct proc *np = p;  // new process to put into L3
+  uint priority = np->priority;   // priority of the new process
+
+  acquire(&mlfq.lock);  // acquire lock of mlfq structure
+  uint qlength = mlfq.qlengths[3];  // number of processes in L3
+  int indextoput = 0;
+  int i;
+  for(i = qlength - 1; i >= 0; i--){  // L3의 맨 오른쪽(뒤) 프로세스부터 비교하면서 들어갈 위치 찾기
+    if(priority <= mlfq.queues[3][i]) // 집어넣을 프로세스의 priority가 더 작으면 그 칸 오른쪽에 넣기
+      indextoput = i + 1;
+      break;
+  }
+  // if문에서 안걸렸으면 priority = 0으로 설정한 초기값으로 유지됨. 제일 크다는 의미
+  // 이제 오른쪽으로 한칸씩 옮겨 indextoput에 빈자리를 만들어아햠(집어넣기 위해)
+  for(i = qlength - 1; i >= indextoput; i--){
+    mlfq.queues[3][i + 1] = mlfq.queues[3][i];
+  }
+  // indextoput에 생긴 빈 자리에 새로운 프로세스 집어넣기
+  mlfq.queues[3][indextoput] = np;
+
+  mlfq.qlengths[3] += 1;  // increment num of processes in L3 by 1
+  release(&mlfq.lock);  // release lock of mlfq structure
+  
+  p->qnum = 3;  // Set current queue number as 3 (L3)
+  p->usedtq = 0;  // Set used tick value to 0.
 }
