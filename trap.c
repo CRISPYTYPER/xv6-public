@@ -116,6 +116,7 @@ trap(struct trapframe *tf)
   //   yield();
 
   // For Project 02
+
   // Force process to give up CPU on clock tick.
   // If interrupts were on while locks held, would need to check nlock.
   if(myproc() && myproc()->state == RUNNING &&
@@ -153,7 +154,55 @@ trap(struct trapframe *tf)
     
       yield();  // give up the CPU held to myproc()
      }
-    
+
+  // Priority boosting
+  // Global tick이 100ticks가 될 때 마다 모든 프로세스들을 L0 큐로 재조정하기 & 모든 프로세스들의 timequantum 초기화하기
+  if(tf->trapno == T_IRQ0+IRQ_TIMER && ticks % 100 == 0){
+    acquire(&mlfq.lock);
+    // 먼저 L0에 있는 프로세스들의 tq 0으로 초기화
+    int i;
+    uint curprocidxL0 = mlfq.curprocidx[0]; // L0큐의 첫 프로세스가 있는 인덱스
+    for(i = 0; i < mlfq.qlengths[0]; i++){
+      mlfq.queues[0][(curprocidxL0+i)%NPROC]->usedtq = 0; // curprocidxL0부터 프로세스 개수만큼 usedtq 초기화
+    }
+    // L1 차례
+    uint curprocidxL1 = mlfq.curprocidx[1]; // L1큐의 첫 프로세스가 있는 인덱스
+    uint lengthL1 = mlfq.qlengths[1]; // L1 큐의 프로세스의 개수
+    for(i = 0; i < lengthL1; i++){
+      mlfq.queues[1][(curprocidxL1+i)%NPROC]->usedtq = 0; // curprocidxL1부터 프로세스 개수만큼 usedtq 초기화
+      mlfq.queues[1][(curprocidxL1+i)%NPROC]->qnum = 0; // L0 소속으로 변경
+      mlfq.queues[0][(curprocidxL0+mlfq.qlengths[0])%NPROC] = mlfq.queues[1][(curprocidxL1+i)%NPROC];  // L1의 프로세스들을 L0큐의 마지막(curprocidx에서 시작해서 논리상 제일 오른쪽) 프로세스 뒤에 붙이기
+      mlfq.qlengths[0]++;
+      mlfq.qlengths[1]--;
+    }
+    if(mlfq.qlengths[1] != 0)  // for debugging
+      panic("Size of L1 not 0 when gloabl boosting!");
+    // L2 차례
+    uint curprocidxL2 = mlfq.curprocidx[2]; // L2프로세스의 첫 프로세스가 있는 인덱스
+    uint lengthL2 = mlfq.qlengths[2];  // L2 큐의 프로세스의 개수
+    for(i = 0; i < lengthL2; i++){
+      mlfq.queues[2][(curprocidxL2+i)%NPROC]->usedtq = 0; // curprocidxL2부터 프로세스 개수만큼 usedtq 초기화
+      mlfq.queues[2][(curprocidxL2+i)%NPROC]->qnum = 0; // L0 소속으로 변경
+      mlfq.queues[0][(curprocidxL0+mlfq.qlengths[0])%NPROC] = mlfq.queues[2][(curprocidxL2+i)%NPROC];  // L2 프로세스들을 L0큐의 마지막(curprocidx에서 시작해서 논리상 제일 오른쪽) 프로세스 뒤에 붙이기
+      mlfq.qlengths[0]++;
+      mlfq.qlengths[2]--;
+    }
+    if(mlfq.qlengths[2] != 0)  // for debugging
+      panic("Size of L2 not 0 when gloabl boosting!");
+    // L3 차례
+    // 어차피 L3는 첫 인덱스가 0임
+    uint lengthL3 = mlfq.qlengths[3];  // L3 큐의 프로세스의 개수
+    for(i = 0; i < lengthL3; i++){
+      mlfq.queues[3][i]->usedtq = 0; // curprocidxL3부터 프로세스 개수만큼 usedtq 초기화
+      mlfq.queues[3][i]->qnum = 0; // L0 소속으로 변경
+      mlfq.queues[0][(curprocidxL0+mlfq.qlengths[0])%NPROC] = mlfq.queues[3][i];  // L3 프로세스들을 L0큐의 마지막(curprocidx에서 시작해서 논리상 제일 오른쪽) 프로세스 뒤에 붙이기
+      mlfq.qlengths[0]++;
+      mlfq.qlengths[3]--;
+    }
+    if(mlfq.qlengths[3] != 0)  // for debugging
+      panic("Size of L3 not 0 when gloabl boosting!");
+    release(&mlfq.lock);
+  } 
 
   // Check if the process has been killed since we yielded
   if(myproc() && myproc()->killed && (tf->cs&3) == DPL_USER)
