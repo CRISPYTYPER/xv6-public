@@ -390,16 +390,26 @@ scheduler(void)
     acquire(&mlfq.lock);
     int i;
     for(i = 0; i < NQUEUE; i++){ // loop through L0 ~ L3
-      if(mlfq.qlengths[i] == 0)
+      if(mlfq.qlengths[i] == 0) // L0 큐부터 살펴보면서 빈큐는 건너뛰기
         continue;
       if(i == 3){ // L3의 경우 삽입시 그냥 priority가 높은 프로세스가 배열 맨 앞에 오도록 만들어 놓음.
-        p = mlfq.queues[i][0]; // L3 큐의 맨 앞의 프로세스가 제일 priority가 높음
+        p = mlfq.queues[i][0]; // L3 큐의 맨 앞의 프로세스가 제일 priority가 높으니 고름
+        // 이론 상, 스케쥴러가 해당 프로세스를 선택했으면 Ready 큐를 빠져 나가니까, mlfq에서 빼놓는 식으로 구현하기.
+        int j;
+        for(j = 1; j < mlfq.qlengths[3]; j++){ // 1번 인덱스의 프로세스 부터 끝까지 왼쪽으로 한칸씩 당김
+          mlfq.queues[3][j-1] = mlfq.queues[3][j];
+        }
+        mlfq.qlengths[3]--; // 일단 현재 실행된 프로세스가 빠져나갔으니 개수 하나를 감소시킴. 
+        // timer interrupt가 발생하면(아직 안끝났다는 의미이니, 거기서(trap()) 다시 L3에 집어넣기)
       }else{  // L0, L1, L2 큐의 경우 RR 정책을 따르므로 curprocidx 사용
         // 프로세스가 들어있는 큐를 L0에서부터 시작해 찾았다면 해당 큐의 curprocidx번째 프로세스를 실행해야함.
         p = mlfq.queues[i][mlfq.curprocidx[i]]; // 해당 큐에서 제일 우선순위가 높았던(제일 먼저 들어왔던)프로세스를 p에 담음
+
         mlfq.curprocidx[i] += 1; // 다음에는 그 다음번 프로세스 부터 실행하면 됨
         if(mlfq.curprocidx[i] == NPROC)
           mlfq.curprocidx[i] = 0;  // 리스트의 범위를 벗어났으면 다시 0으로 만듬.
+        // 마찬가지로 여기서도 스케쥴러에서 골라지면 해당 레디큐를 빠져나가도록 구현
+        mlfq.qlengths[i]--;  // 해당 큐의 프로세스 개수를 하나 줄임.
       }
       
       // Switch to chosen process.  It is the process's job
@@ -692,8 +702,8 @@ void _putintomlfq(struct proc *p, int targetqueue){
   mlfq.qlengths[targetqueue] += 1;  // increment num of processes in L{targetqueue} by 1
   release(&mlfq.lock);  // release lock of mlfq structure
   
-  p->qnum = targetqueue;  // Set current queue number as targetqueue (L{targetqueue})
-  p->usedtq = 0;  // Set used tick value to 0.
+  np->qnum = targetqueue;  // Set current queue number as targetqueue (L{targetqueue})
+  np->usedtq = 0;  // Set used tick value to 0.
 }
 
 // Append a new process into L0 queue
@@ -745,6 +755,6 @@ putintoL3(struct proc *p)
   mlfq.qlengths[3] += 1;  // increment num of processes in L3 by 1
   release(&mlfq.lock);  // release lock of mlfq structure
   
-  p->qnum = 3;  // Set current queue number as 3 (L3)
-  p->usedtq = 0;  // Set used tick value to 0.
+  np->qnum = 3;  // Set current queue number as 3 (L3)
+  np->usedtq = 0;  // Set used tick value to 0.
 }

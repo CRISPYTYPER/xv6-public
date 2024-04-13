@@ -124,6 +124,7 @@ trap(struct trapframe *tf)
       if(myproc()->usedtq == mlfq.timequantums[myproc()->qnum]){ // 시간 다 사용
       release(&mlfq.lock);
         switch(myproc()->qnum){  // the queue number where myproc() is in
+          // 스케쥴러에서 골라질 때 이미 레디큐에서 빼놔서 집어넣기만 하면 됨.
           case 0: // L0 큐에서 실행되던 프로세스인 경우
             if(myproc()->pid % 2 == 1){ // pid가 홀수인 프로세스들은 L1 큐로 내려가고, tq 초기화
               putintoL1(myproc());
@@ -139,6 +140,12 @@ trap(struct trapframe *tf)
             break;
           case 3: // L3 큐에서 실행되던 프로세스인 경우
             // TODO: priority를 1 감소시키고, timequantum초기화. mlfq 프로세스들 재배열해야함
+            if(myproc()->priority > 0)  // priority가 0에서는 더 감소하지 않음
+              myproc()->priority--;
+            myproc()->usedtq = 0;
+            // 스케쥴러에서 골라졌을때(RUNNING)이미 해당 레디큐에서 빠졌었음. 그래서 여기서 다시 넣어줘야함.
+            putintoL3(myproc());
+
           default:
             panic("invalid pid value!!(trap.c)");
           }
