@@ -26,8 +26,14 @@ int uptime(void);
 int myfunction(char*);
 int getppid(void);
 int getgpid(void);
-void yield(void);
 void print_ticks_pid_name(void);
+// For project02
+void yield(void);
+int getlev(void);
+int setpriority(int pid, int priority);
+int setmonopoly(int pid, int password);
+void monopolize();
+void unmonopolize();
 
 // ulib.c
 int stat(const char*, struct stat*);
