@@ -152,6 +152,7 @@ userinit(void)
   // For project 02
   p->usedtq = 0; // initialize used timequantum of the process to 0
   p->priority = 0; // initialize priority of the process to 0
+  p->ismoq = 0; // initialize ismoq to 0 since it's not in moq at first
 
   putintoL0(p);  // Insert into L0 queue
 
@@ -224,6 +225,7 @@ fork(void)
   // Added for Project 02
   np->usedtq = 0; // initialize used timequantum of the process to 0
   np->priority = 0; // initialize priority of the process to 0
+  np->ismoq = 0;  // initialize ismoq as 0 since it's not in moq at first
   putintoL0(np);  // add the new process np into L0 queue 
 
   release(&ptable.lock);
@@ -311,6 +313,7 @@ wait(void)
         p->qnum = 0;
         p->usedtq = 0;
         p->priority = 0;
+        p->ismoq = 0;
         release(&ptable.lock);
         return pid;
       }
@@ -432,7 +435,6 @@ scheduler(void)
       // It should have changed its p->state before coming back.
       c->proc = 0;
 
-      // TODO: Check if we need to adjust the process's priority based on its behavior.(L3)
       break;  // use break to iterate from L0 (from the beginning)
     }
     release(&mlfq.lock);

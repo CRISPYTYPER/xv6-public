@@ -53,6 +53,7 @@ struct proc {
   int qnum;                    // Indicates which queue is it in (-1 if not in MLFQ)
   uint usedtq;                 // Used time quantum
   uint priority;               // Priority for L3 queue
+  uint ismoq;                  // wheter if a process is in moq
 };
 
 // Process memory is laid out contiguously, low addresses first:

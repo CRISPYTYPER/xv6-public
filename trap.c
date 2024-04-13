@@ -119,8 +119,9 @@ trap(struct trapframe *tf)
 
   // Force process to give up CPU on clock tick.
   // If interrupts were on while locks held, would need to check nlock.
+  // Also, if a process is in moq, timer interrupt doesn't happen.
   if(myproc() && myproc()->state == RUNNING &&
-     tf->trapno == T_IRQ0+IRQ_TIMER){
+     tf->trapno == T_IRQ0+IRQ_TIMER && myproc()->ismoq == 0){ // ismoq 여부 체크해서 만약 moq proc이면 인터럽트 안시켜야함
       acquire(&mlfq.lock);
       if(myproc()->usedtq == mlfq.timequantums[myproc()->qnum]){ // 시간 다 사용
       release(&mlfq.lock);
@@ -157,7 +158,8 @@ trap(struct trapframe *tf)
 
   // Priority boosting
   // Global tick이 100ticks가 될 때 마다 모든 프로세스들을 L0 큐로 재조정하기 & 모든 프로세스들의 timequantum 초기화하기
-  if(tf->trapno == T_IRQ0+IRQ_TIMER && ticks % 100 == 0){
+  // moq가 비어있어야만 priority boosting 발생
+  if(tf->trapno == T_IRQ0+IRQ_TIMER && ticks % 100 == 0 && mlfq.moqlength == 0){
     acquire(&mlfq.lock);
     // 먼저 L0에 있는 프로세스들의 tq 0으로 초기화
     int i;
