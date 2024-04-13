@@ -273,6 +273,7 @@ exit(void)
 
   // Jump into the scheduler, never to return.
   curproc->state = ZOMBIE;
+  curproc->qnum = -1; // For Project 02. -1 if not in MLFQ
   sched();
   panic("zombie exit");
 }
@@ -305,6 +306,11 @@ wait(void)
         p->name[0] = 0;
         p->killed = 0;
         p->state = UNUSED;
+        // For Project 02
+        // Clean up the added members of proc state
+        p->qnum = 0;
+        p->usedtq = 0;
+        p->priority = 0;
         release(&ptable.lock);
         return pid;
       }
@@ -541,6 +547,28 @@ wakeup1(void *chan)
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == SLEEPING && p->chan == chan)
       p->state = RUNNABLE;
+      // For Project 02
+      // 깨어났으면 다시 sleep 전 해당 그 큐로 보내는 정책을 사용할 예정임
+      // usedtq는 각 putintoL{qnum}에서 0으로 다시 초기화해줌. (다시 배정시 뒤로 밀리기 때문에 사용시간을 더 배정하여 공정성을 맞춤)
+      int qnum = p->qnum; // sleep 이전에 위치해있던 mlfq의 큐 번호
+      switch(qnum){
+        case 0:
+          putintoL0(p);
+          break;
+        case 1:
+          putintoL1(p);
+          break;
+        case 2:
+          putintoL2(p);
+          break;
+        case 3:
+          putintoL3(p);
+          break;
+        default:
+          panic("unexpected qnum!");
+          
+      }
+
 }
 
 // Wake up all processes sleeping on chan.
