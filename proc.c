@@ -397,48 +397,54 @@ scheduler(void)
 
     // Loop over mlfq.queues looking for process to run.
     acquire(&mlfq.lock);
-    int i;
-    for(i = 0; i < NQUEUE; i++){ // loop through L0 ~ L3
-      if(mlfq.qlengths[i] == 0) // L0 큐부터 살펴보면서 빈큐는 건너뛰기
-        continue;
-      if(i == 3){ // L3의 경우 삽입시 그냥 priority가 높은 프로세스가 배열 맨 앞에 오도록 만들어 놓음.
-        p = mlfq.queues[i][0]; // L3 큐의 맨 앞의 프로세스가 제일 priority가 높으니 고름
-        // 이론 상, 스케쥴러가 해당 프로세스를 선택했으면 Ready 큐를 빠져 나가니까, mlfq에서 빼놓는 식으로 구현하기.
-        int j;
-        for(j = 1; j < mlfq.qlengths[3]; j++){ // 1번 인덱스의 프로세스 부터 끝까지 왼쪽으로 한칸씩 당김
-          mlfq.queues[3][j-1] = mlfq.queues[3][j];
+    if(mlfq.moqlength == 0){
+      int i;
+      for(i = 0; i < NQUEUE; i++){ // loop through L0 ~ L3
+        if(mlfq.qlengths[i] == 0) // L0 큐부터 살펴보면서 빈큐는 건너뛰기
+          continue;
+        if(i == 3){ // L3의 경우 삽입시 그냥 priority가 높은 프로세스가 배열 맨 앞에 오도록 만들어 놓음.
+          p = mlfq.queues[i][0]; // L3 큐의 맨 앞의 프로세스가 제일 priority가 높으니 고름
+          // 이론 상, 스케쥴러가 해당 프로세스를 선택했으면 Ready 큐를 빠져 나가니까, mlfq에서 빼놓는 식으로 구현하기.
+          int j;
+          for(j = 1; j < mlfq.qlengths[3]; j++){ // 1번 인덱스의 프로세스 부터 끝까지 왼쪽으로 한칸씩 당김
+            mlfq.queues[3][j-1] = mlfq.queues[3][j];
+          }
+          mlfq.qlengths[3]--; // 일단 현재 실행된 프로세스가 빠져나갔으니 개수 하나를 감소시킴. 
+          // timer interrupt가 발생하면(아직 안끝났다는 의미이니, 거기서(trap()) 다시 L3에 집어넣기)
+        }else{  // L0, L1, L2 큐의 경우 RR 정책을 따르므로 curprocidx 사용
+          // 프로세스가 들어있는 큐를 L0에서부터 시작해 찾았다면 해당 큐의 curprocidx번째 프로세스를 실행해야함.
+          p = mlfq.queues[i][mlfq.curprocidx[i]]; // 해당 큐에서 제일 우선순위가 높았던(제일 먼저 들어왔던)프로세스를 p에 담음
+
+          mlfq.curprocidx[i] += 1; // 다음에는 그 다음번 프로세스 부터 실행하면 됨
+          if(mlfq.curprocidx[i] == NPROC)
+            mlfq.curprocidx[i] = 0;  // 리스트의 범위를 벗어났으면 다시 0으로 만듬.
+          // 마찬가지로 여기서도 스케쥴러에서 골라지면 해당 레디큐를 빠져나가도록 구현
+          mlfq.qlengths[i]--;  // 해당 큐의 프로세스 개수를 하나 줄임.
         }
-        mlfq.qlengths[3]--; // 일단 현재 실행된 프로세스가 빠져나갔으니 개수 하나를 감소시킴. 
-        // timer interrupt가 발생하면(아직 안끝났다는 의미이니, 거기서(trap()) 다시 L3에 집어넣기)
-      }else{  // L0, L1, L2 큐의 경우 RR 정책을 따르므로 curprocidx 사용
-        // 프로세스가 들어있는 큐를 L0에서부터 시작해 찾았다면 해당 큐의 curprocidx번째 프로세스를 실행해야함.
-        p = mlfq.queues[i][mlfq.curprocidx[i]]; // 해당 큐에서 제일 우선순위가 높았던(제일 먼저 들어왔던)프로세스를 p에 담음
-
-        mlfq.curprocidx[i] += 1; // 다음에는 그 다음번 프로세스 부터 실행하면 됨
-        if(mlfq.curprocidx[i] == NPROC)
-          mlfq.curprocidx[i] = 0;  // 리스트의 범위를 벗어났으면 다시 0으로 만듬.
-        // 마찬가지로 여기서도 스케쥴러에서 골라지면 해당 레디큐를 빠져나가도록 구현
-        mlfq.qlengths[i]--;  // 해당 큐의 프로세스 개수를 하나 줄임.
+        break;  // 실행할 프로세스를 골랐으니 for문을 빠져나와, 실제 해당 프로세스를 실행하는 부분으로 내려감
+      }  // end of for(i = 0; i < NQUEUE; i++)
+    } else{ // if(mlfq.moqlength != 0)
+      p = mlfq.moq[0]; // moq의 맨 앞 프로세스를 실행할 프로세스로 선택
+      int i;
+      for(i = 1; i < mlfq.moqlength; i++){ // 그 오른쪽 프로세스부터 한칸씩 앞으로 당기기
+        mlfq.moq[i - 1] = mlfq.moq[i];
       }
-      
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
-
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
-
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
-
-      break;  // use break to iterate from L0 (from the beginning)
+      mlfq.moqlength--; // moq의 길이 1 감소
     }
-    release(&mlfq.lock);
+    // Switch to chosen process.  It is the process's job
+    // to release ptable.lock and then reacquire it
+    // before jumping back to us.
+    c->proc = p;
+    switchuvm(p);
+    p->state = RUNNING;
 
+    swtch(&(c->scheduler), p->context);
+    switchkvm();
+
+    // Process is done running for now.
+    // It should have changed its p->state before coming back.
+    c->proc = 0;
+    release(&mlfq.lock);
   }
 }
 
@@ -551,24 +557,34 @@ wakeup1(void *chan)
       p->state = RUNNABLE;
       // For Project 02
       // 깨어났으면 다시 sleep 전 해당 그 큐로 보내는 정책을 사용할 예정임
-      // usedtq는 각 putintoL{qnum}에서 0으로 다시 초기화해줌. (다시 배정시 뒤로 밀리기 때문에 사용시간을 더 배정하여 공정성을 맞춤)
-      int qnum = p->qnum; // sleep 이전에 위치해있던 mlfq의 큐 번호
-      switch(qnum){
-        case 0:
-          putintoL0(p);
-          break;
-        case 1:
-          putintoL1(p);
-          break;
-        case 2:
-          putintoL2(p);
-          break;
-        case 3:
-          putintoL3(p);
-          break;
-        default:
-          panic("unexpected qnum!");
-          
+      if(p->ismoq == 1){ // moq의 프로세스였던 경우
+        int i;
+        for(i = mlfq.moqlength - 1; i >= 0; i--){
+          mlfq.moq[i + 1] = mlfq.moq[i]; // 한칸씩 오른쪽으로 당기기
+        }
+        // moq의 맨 앞자리에 다시 집어넣기
+        mlfq.moq[0] = p;
+        mlfq.moqlength++; // moq의 길이 1 늘리기
+      } else { // 일반 mlfq의 프로세스였던 경우
+        // usedtq는 각 putintoL{qnum}에서 0으로 다시 초기화해줌. (다시 배정시 뒤로 밀리기 때문에 사용시간을 더 배정하여 공정성을 맞춤)
+        int qnum = p->qnum; // sleep 이전에 위치해있던 mlfq의 큐 번호
+        switch(qnum){
+          case 0:
+            putintoL0(p);
+            break;
+          case 1:
+            putintoL1(p);
+            break;
+          case 2:
+            putintoL2(p);
+            break;
+          case 3:
+            putintoL3(p);
+            break;
+          default:
+            panic("unexpected qnum!");
+            
+        }
       }
 
 }
