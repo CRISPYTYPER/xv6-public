@@ -713,10 +713,15 @@ mlfqinit()
     mlfq.qlengths[i] = 0;  // initialize number of processes in each queue
     mlfq.timequantums[i] = 2 * (i + 1);  // set time quantums
     mlfq.curprocidx[i] = 0;  // set idx to search as 0
-    for (j = 0; j < NPROC; j++) {
+    for (j = 0; j < NPROC; j++){
       mlfq.queues[i][j] = 0;  // set each as NULL
     }
   }
+  // Initialize moq related members of mlfq struct
+  for(i = 0; i < NPROC; i++){
+    mlfq.moq[i] = 0;
+  }
+  mlfq.moqlength = 0;
 }
 
 // Generic function to append a process into a given Queue level

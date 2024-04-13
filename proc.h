@@ -69,7 +69,9 @@ typedef struct {
   uint qlengths[NQUEUE];               // Count of processes in each queue
   uint timequantums[NQUEUE];            // Time quantum of each process
   uint curprocidx[NQUEUE];              // Current idx in each queue where to run(increment by 1 as proceeds. not used in L3)
-  // uint totalpnum;                     // Total number of processes in all queues   
+
+  struct proc* moq[NPROC];  // MOQ
+  uint moqlength;           // length of moq
 } mlfq_t;
 
 extern mlfq_t mlfq;
