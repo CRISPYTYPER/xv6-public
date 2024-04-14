@@ -23,6 +23,7 @@ typedef struct {
 
   struct proc* moq[NPROC];  // MOQ
   uint moqlength;           // length of moq
+  int ismonopolized;        // if monopolize() is on
 } mlfq_t;
 
 extern mlfq_t mlfq;
@@ -412,7 +413,7 @@ scheduler(void)
 
     // Loop over mlfq.queues looking for process to run.
     acquire(&mlfq.lock);
-    if(mlfq.moqlength == 0){
+    if(mlfq.ismonopolized == 0){ // monopolize() 가 꺼져있으면
 
       int i;
       for(i = 0; i < NQUEUE; i++){ // loop through L0 ~ L3
@@ -427,6 +428,7 @@ scheduler(void)
           }
           mlfq.qlengths[3]--; // 일단 현재 실행된 프로세스가 빠져나갔으니 개수 하나를 감소시킴. 
           // timer interrupt가 발생하면(아직 안끝났다는 의미이니, 거기서(trap()) 다시 L3에 집어넣기)
+          
         }else{  // L0, L1, L2 큐의 경우 RR 정책을 따르므로 curprocidx 사용
           // 프로세스가 들어있는 큐를 L0에서부터 시작해 찾았다면 해당 큐의 curprocidx번째 프로세스를 실행해야함.
           p = mlfq.queues[i][mlfq.curprocidx[i]]; // 해당 큐에서 제일 우선순위가 높았던(제일 먼저 들어왔던)프로세스를 p에 담음
@@ -452,27 +454,37 @@ scheduler(void)
         c->proc = 0;
       }  // end of for(i = 0; i < NQUEUE; i++)
 
-    } else{ // if(mlfq.moqlength != 0)
-      p = mlfq.moq[0]; // moq의 맨 앞 프로세스를 실행할 프로세스로 선택
-      int i;
-      for(i = 1; i < mlfq.moqlength; i++){ // 그 오른쪽 프로세스부터 한칸씩 앞으로 당기기
-        mlfq.moq[i - 1] = mlfq.moq[i];
+    } else{ // if(mlfq.ismonopolized == 1) monopolize()가 켜져있으면
+      if(mlfq.moqlength > 0){
+        p = mlfq.moq[0]; // moq의 맨 앞 프로세스를 실행할 프로세스로 선택
+        int i;
+        for(i = 1; i < mlfq.moqlength; i++){ // 그 오른쪽 프로세스부터 한칸씩 앞으로 당기기
+          mlfq.moq[i - 1] = mlfq.moq[i];
+        }
+        mlfq.moqlength--; // moq의 길이 1 감소
+
+        // Switch to chosen process.  It is the process's job
+        // to release ptable.lock and then reacquire it
+        // before jumping back to us.
+        c->proc = p;
+        switchuvm(p);
+        p->state = RUNNING;
+
+        swtch(&(c->scheduler), p->context);
+        switchkvm();
+
+        // Process is done running for now.
+        // It should have changed its p->state before coming back.
+        c->proc = 0;
+        if(mlfq.moqlength == 0)  // 모든 프로세스들이 종료된 경우
+          release(&mlfq.lock);
+          unmonopolize();
+          acquire(&mlfq.lock);
+      }else {  // MoQ의 길이가 0인 상태에서 monopolize가 실행되었으면
+        release(&mlfq.lock);
+        unmonopolize();
+        acquire(&mlfq.lock);
       }
-      mlfq.moqlength--; // moq의 길이 1 감소
-
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
-
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
-
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
     }
     release(&mlfq.lock);
   }
@@ -714,6 +726,7 @@ mlfqinit()
     mlfq.moq[i] = 0;
   }
   mlfq.moqlength = 0;
+  mlfq.ismonopolized = 0;
 }
 
 // Generic function to append a process into a given Queue level
@@ -914,4 +927,25 @@ setmonopoly(int pid)
   }
   release(&ptable.lock);
   return -1;  // 주어진 pid를 가진 프로세스가 존재하지 않는 경우 -1을 반환
+}
+
+// MoQ의 프로세스가 CPU를 독점하여 사용하도록 설정합니다.
+int
+monopolize(void)
+{
+  acquire(&mlfq.lock);
+  mlfq.ismonopolized = 1;
+  release(&mlfq.lock);
+  return 0;
+}
+
+// 독점적 스케줄링을 중지하고 기존의 MLFQ part로 돌아갑니다.
+int
+unmonopolize(void)
+{
+  acquire(&mlfq.lock);
+  mlfq.ismonopolized = 0;
+  ticks = 0; // global tick 0으로 초기화
+  release(&mlfq.lock);
+  return 0;
 }

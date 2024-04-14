@@ -151,7 +151,7 @@ sys_setpriority(void)
     return -10;
   if(priority < 0 || priority > 10)
     return -2;  // priority가 0 이상 10 이하의 정수가 아닌 경우 -2를 반환
-    
+
   return setprioriy(pid, priority);  // proc.c
 }
 
@@ -182,18 +182,20 @@ sys_setmonopoly(void)
   }
 }
 
-void
-monopolize(void)
+int
+sys_monopolize(void)
 {
   /**
    * MoQ의 프로세스가 CPU를 독점하여 사용하도록 설정합니다.
   */
+  return monopolize();
 }
 
-void
-unmonopolize(void)
+int
+sys_unmonopolize(void)
 {
   /**
    * 독점적 스케줄링을 중지하고 기존의 MLFQ part로 돌아갑니다.
   */
+  return unmonopolize();
 }
