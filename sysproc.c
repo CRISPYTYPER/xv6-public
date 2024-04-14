@@ -102,6 +102,8 @@ sys_print_ticks_pid_name(void) {
 
 // Project 02
 // Required system calls
+// 인자 잘못된 경우 리턴을 원래는 -1을 해야하는데, 명세의 내용이 정해져 있어,
+// 혼동을 방지하기 위해여 -10을 리턴하도록 설정함.
 int
 sys_yield(void) {
   /**
@@ -125,7 +127,7 @@ sys_getlev(void)
       return 99;
     }
   }else{
-    return -1;
+    return -10;
   }
 }
 
@@ -144,16 +146,19 @@ sys_setpriority(void)
 
   // argint fetches the nth 32-bit system call argument
   if(argint(0, &pid) < 0)
-    return -1;
+    return -10;
   if(argint(1, &priority) < 0)
-    return -1;
+    return -10;
+  if(priority < 0 || priority > 10)
+    return -2;  // priority가 0 이상 10 이하의 정수가 아닌 경우 -2를 반환
+    
   return setprioriy(pid, priority);  // proc.c
 }
 
 int
-setmonopoly(int pid, int password)
+sys_setmonopoly(void)
 {
-  /**
+  /** arguments: (int pid, int password)
    * 특정 pid를 가진 프로세스를 MoQ로 이동합니다. 인자로 독점 자격을 증명할 암호(자신의 학번)을 받습니다.
    * 암호가 일치할 경우, MoQ를 반환합니다.
    * 존재하지 않는 포르세스의 pid인 경우 -1을 반환합니다.
@@ -161,6 +166,20 @@ setmonopoly(int pid, int password)
    * 이미 MoQ에 존재하는 프로세스인 경우 -3을 반환합니다.
    * 자기 자신을 MoQ로 이동시키려 하는 경우 -4를 반환합니다.
   */
+  int pid, password;
+
+  // argint fetches the nth 32-bit system call argument
+  if(argint(0, &pid) < 0)
+    return -10;
+  if(argint(1, &password) < 0)
+    return -10;
+
+  // 학번을 암호로 입력받음
+  if(password != 2019040591){ // 일치하지 않으면
+    return -2;  // 암호가 일치하지 않는 경우 -2를 반환
+  } else{
+    return setmonopoly(pid);
+  }
 }
 
 void

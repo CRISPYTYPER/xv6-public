@@ -787,18 +787,127 @@ putintoL3(struct proc *p)
 }
 
 // Internal handlers for functions in sysproc.c
+
+// 특정 pid를 가지는 프로세스의 priority를 설정합니다.
 int
 setpriority(int pid, int priority)
-{
-  if(priority < 0 || priority > 10)
-    return -2;  // priority가 0 이상 10 이하의 정수가 아닌 경우 -2를 반환
-  
+{ 
   struct proc *p;
   acquire(&ptable.lock);
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state != UNUSED && p->pid == pid){
       p->priority = priority;
+      release(&ptable.lock);
+      return 0;  // priority 설정에 성공한 경우 0을 반환
+    }
+  }
+  release(&ptable.lock);
+  return -1;  // 주어진 pid를 가진 프로세스가 존재하지 않는 경우 -1을 반환
+}
+
+// 특정 pid를 가진 프로세스를 MoQ로 이동합니다
+int
+setmonopoly(int pid)
+{
+  struct proc *p;
+  acquire(&ptable.lock);
+
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if((p->state == RUNNING || p->state == RUNNABLE) && p->pid == pid){
+      if(myproc()->pid == p->pid){
+        release(&ptable.lock);
+        return -4;  // 자기 자신(RUNNING)을 MoQ로 이동시키려 하는 경우 -4를 반환
+      } else if(p->ismoq == 1){  // 이미 MoQ에 들어있던 프로세스인 경우
+        release(&ptable.lock);
+        return -3;  // 이미 MoQ에 존재하는 프로세스인 경우 -3을 반환
+      } else{  // CPU가 한개이므로 내가 실행될 일은 없음 따라서 RUNNING은 아님
+        // TODO: RUNNABLE 프로세스였으면 먼저 그 큐(MLFQ)에서 뺐어야함
+        acquire(&mlfq.lock);
+        switch(p->qnum){
+          case 0: // L0에 있던 프로세스를 빼야함
+            uint curprocidx = mlfq.curprocidx[0];
+            uint qlength = mlfq.qlengths[0];
+
+            int i;
+            int isfound = 0; // p를 발견했는지 여부
+            for(i = 0; i < qlength; i++){ // L0큐에서 p를 찾아야함
+              if(isfound == 1){  // 이 전에 p를 찾았으면 그 이후부터는 왼쪽으로 한칸씩 당김
+                mlfq.queues[0][curprocidx + i - 1] = mlfq.queues[0][curprocidx + i];
+              }
+              if(mlfq.queues[0][curprocidx + i] == p){ // 상대 index i 에 있는 p를 찾았으면
+                if(i == 0) // 만약 curprocidx위치에 있던 프로세스를 옮겨야 하면, curprocidx를 오른쪽으로 한칸 이동
+                  mlfq.curprocidx[0]++;
+                isfound = 1;
+              }
+            }
+            mlfq.qlengths[0]--;
+            break; // case 0 end
+          case 1:  // L1에 있던 프로세스를 빼야함
+            uint curprocidx = mlfq.curprocidx[1];
+            uint qlength = mlfq.qlengths[1];
+
+            int i;
+            int isfound = 0; // p를 발견했는지 여부
+            for(i = 0; i < qlength; i++){ // L1큐에서 p를 찾아야함
+              if(isfound == 1){  // 이 전에 p를 찾았으면 그 이후부터는 왼쪽으로 한칸씩 당김
+                mlfq.queues[1][curprocidx + i - 1] = mlfq.queues[1][curprocidx + i];
+              }
+              if(mlfq.queues[1][curprocidx + i] == p){ // 상대 index i 에 있는 p를 찾았으면
+                if(i == 0) // 만약 curprocidx위치에 있던 프로세스를 옮겨야 하면, curprocidx를 오른쪽으로 한칸 이동
+                  mlfq.curprocidx[1]++;
+                isfound = 1;
+              }
+            }
+            mlfq.qlengths[1]--;
+            break; // case 1 end
+          case 2:  // L2에 있던 프로세스를 빼야함
+            uint curprocidx = mlfq.curprocidx[2];
+            uint qlength = mlfq.qlengths[2];
+
+            int i;
+            int isfound = 0; // p를 발견했는지 여부
+            for(i = 0; i < qlength; i++){ // L2큐에서 p를 찾아야함
+              if(isfound == 1){  // 이 전에 p를 찾았으면 그 이후부터는 왼쪽으로 한칸씩 당김
+                mlfq.queues[2][curprocidx + i - 1] = mlfq.queues[2][curprocidx + i];
+              }
+              if(mlfq.queues[2][curprocidx + i] == p){ // 상대 index i 에 있는 p를 찾았으면
+                if(i == 0) // 만약 curprocidx위치에 있던 프로세스를 옮겨야 하면, curprocidx를 오른쪽으로 한칸 이동
+                  mlfq.curprocidx[2]++;
+                isfound = 1;
+              }
+            }
+            mlfq.qlengths[2]--;
+            break; // case 2 end
+          case 3:  // L3에 있던 프로세스를 빼야함
+            // L3는 프로세스의 맨 앞(0)부터 실행이 되기때문에 curprocidx가 필요 없음
+            uint qlength = mlfq.qlengths[3];
+
+            int i;
+            int isfound = 0; // p를 발견했는지 여부
+            for(i = 0; i < qlength; i++){ // L3큐에서 p를 찾아야함
+              if(isfound == 1){  // 이 전에 p를 찾았으면 그 이후부터는 왼쪽으로 한칸씩 당김
+                mlfq.queues[3][i - 1] = mlfq.queues[3][i];
+              }
+              if(mlfq.queues[3][i] == p){ // index i 에 있는 p를 찾았으면
+                isfound = 1;
+              }
+            }
+            mlfq.qlengths[3]--;
+            break; // case 3 end
+          default:
+            panic("invalid qnum in setmonopoly()!");
+        }
+        
+        // 이 위에까진 MLFQ 구조 수정
+        // 이 아래부턴 MoQ 구조 수정
+        mlfq.moq[mlfq.moqlength] = p;
+        mlfq.moqlength++;
+        p->ismoq = 1;
+        release(&mlfq.lock);
+        release(&ptable.lock);
+        return 0;
+      }
       release(&ptable.lock);
       return 0;  // priority 설정에 성공한 경우 0을 반환
     }
