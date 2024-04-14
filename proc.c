@@ -717,7 +717,8 @@ mlfqinit()
 }
 
 // Generic function to append a process into a given Queue level
-void _putintomlfq(struct proc *p, int targetqueue){
+void _putintomlfq(struct proc *p, int targetqueue)
+{
   struct proc *np = p;  // new process to put into L{targetqueue}
 
   acquire(&mlfq.lock);  // acquire lock of mlfq structure
@@ -783,4 +784,25 @@ putintoL3(struct proc *p)
   
   np->qnum = 3;  // Set current queue number as 3 (L3)
   np->usedtq = 0;  // Set used tick value to 0.
+}
+
+// Internal handlers for functions in sysproc.c
+int
+setpriority(int pid, int priority)
+{
+  if(priority < 0 || priority > 10)
+    return -2;  // priority가 0 이상 10 이하의 정수가 아닌 경우 -2를 반환
+  
+  struct proc *p;
+  acquire(&ptable.lock);
+
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->state != UNUSED && p->pid == pid){
+      p->priority = priority;
+      release(&ptable.lock);
+      return 0;  // priority 설정에 성공한 경우 0을 반환
+    }
+  }
+  release(&ptable.lock);
+  return -1;  // 주어진 pid를 가진 프로세스가 존재하지 않는 경우 -1을 반환
 }

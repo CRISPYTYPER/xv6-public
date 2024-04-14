@@ -130,14 +130,24 @@ sys_getlev(void)
 }
 
 int
-setpriority(int pid, int priority)
+sys_setpriority(void)
 {
   /**
+   * arguments: (int pid, int priority)
    * 특정 pid를 가지는 프로세스의 priority를 설정합니다.
    * priority 설정에 성공한 경우 0을 반환합니다.
    * 주어진 pid를 가진 프로세스가 존재하지 않는 경우 -1을 반환합니다.
    * priority가 0 이상 10 이하의 정수가 아닌 경우 -2를 반환합니다.
   */
+
+  int pid, priority;
+
+  // argint fetches the nth 32-bit system call argument
+  if(argint(0, &pid) < 0)
+    return -1;
+  if(argint(1, &priority) < 0)
+    return -1;
+  return setprioriy(pid, priority);  // proc.c
 }
 
 int
