@@ -62,23 +62,12 @@ struct proc {
 //   fixed-size stack
 //   expandable heap
 
-// For Project02
-// Multi Level Feedback Queue structure
-typedef struct {
-  struct spinlock lock;
-  struct proc* queues[NQUEUE][NPROC];  // Process queues (4 levels)
-  uint qlengths[NQUEUE];               // Count of processes in each queue
-  uint timequantums[NQUEUE];            // Time quantum of each process
-  uint curprocidx[NQUEUE];              // Current idx in each queue where to run(increment by 1 as proceeds. not used in L3)
-
-  struct proc* moq[NPROC];  // MOQ
-  uint moqlength;           // length of moq
-} mlfq_t;
-
-extern mlfq_t mlfq;
 
 // to use these in trap.c
 void putintoL0(struct proc *p);
 void putintoL1(struct proc *p);
 void putintoL2(struct proc *p);
 void putintoL3(struct proc *p);
+
+// to use these in proc.c
+void mlfqinit();

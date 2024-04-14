@@ -12,6 +12,21 @@ struct {
   struct proc proc[NPROC];
 } ptable;
 
+// For Project02
+// Multi Level Feedback Queue structure
+typedef struct {
+  struct spinlock lock;
+  struct proc* queues[NQUEUE][NPROC];  // Process queues (4 levels)
+  uint qlengths[NQUEUE];               // Count of processes in each queue
+  uint timequantums[NQUEUE];            // Time quantum of each process
+  uint curprocidx[NQUEUE];              // Current idx in each queue where to run(increment by 1 as proceeds. not used in L3)
+
+  struct proc* moq[NPROC];  // MOQ
+  uint moqlength;           // length of moq
+} mlfq_t;
+
+extern mlfq_t mlfq;
+
 static struct proc *initproc;
 
 int nextpid = 1;
@@ -398,6 +413,7 @@ scheduler(void)
     // Loop over mlfq.queues looking for process to run.
     acquire(&mlfq.lock);
     if(mlfq.moqlength == 0){
+
       int i;
       for(i = 0; i < NQUEUE; i++){ // loop through L0 ~ L3
         if(mlfq.qlengths[i] == 0) // L0 큐부터 살펴보면서 빈큐는 건너뛰기
@@ -421,8 +437,21 @@ scheduler(void)
           // 마찬가지로 여기서도 스케쥴러에서 골라지면 해당 레디큐를 빠져나가도록 구현
           mlfq.qlengths[i]--;  // 해당 큐의 프로세스 개수를 하나 줄임.
         }
-        break;  // 실행할 프로세스를 골랐으니 for문을 빠져나와, 실제 해당 프로세스를 실행하는 부분으로 내려감
+        // Switch to chosen process.  It is the process's job
+        // to release ptable.lock and then reacquire it
+        // before jumping back to us.
+        c->proc = p;
+        switchuvm(p);
+        p->state = RUNNING;
+
+        swtch(&(c->scheduler), p->context);
+        switchkvm();
+
+        // Process is done running for now.
+        // It should have changed its p->state before coming back.
+        c->proc = 0;
       }  // end of for(i = 0; i < NQUEUE; i++)
+
     } else{ // if(mlfq.moqlength != 0)
       p = mlfq.moq[0]; // moq의 맨 앞 프로세스를 실행할 프로세스로 선택
       int i;
@@ -430,20 +459,21 @@ scheduler(void)
         mlfq.moq[i - 1] = mlfq.moq[i];
       }
       mlfq.moqlength--; // moq의 길이 1 감소
+
+      // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+      c->proc = p;
+      switchuvm(p);
+      p->state = RUNNING;
+
+      swtch(&(c->scheduler), p->context);
+      switchkvm();
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
     }
-    // Switch to chosen process.  It is the process's job
-    // to release ptable.lock and then reacquire it
-    // before jumping back to us.
-    c->proc = p;
-    switchuvm(p);
-    p->state = RUNNING;
-
-    swtch(&(c->scheduler), p->context);
-    switchkvm();
-
-    // Process is done running for now.
-    // It should have changed its p->state before coming back.
-    c->proc = 0;
     release(&mlfq.lock);
   }
 }
@@ -552,8 +582,8 @@ wakeup1(void *chan)
 {
   struct proc *p;
 
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan == chan)
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->state == SLEEPING && p->chan == chan){
       p->state = RUNNABLE;
       // For Project 02
       // 깨어났으면 다시 sleep 전 해당 그 큐로 보내는 정책을 사용할 예정임
@@ -586,7 +616,8 @@ wakeup1(void *chan)
             
         }
       }
-
+    }
+  }
 }
 
 // Wake up all processes sleeping on chan.
@@ -658,64 +689,7 @@ procdump(void)
   }
 }
 
-// Project 02
-// Required system calls
-void 
-yield(void) 
-{
-  // 자신이 점유한 cpu를 양보합니다  
-}
-
-int 
-getlev(void)
-{
-  /**
-   * 프로세스가 속한 큐의 레벨을 반환합니다.
-   * MoQ에 속한 프로세스인 경우 99를 반환합니다.
-  */
-}
-
-int
-setpriority(int pid, int priority)
-{
-  /**
-   * 특정 pid를 가지는 프로세스의 priority를 설정합니다.
-   * priority 설정에 성공한 경우 0을 반환합니다.
-   * 주어진 pid를 가진 프로세스가 존재하지 않는 경우 -1을 반환합니다.
-   * priority가 0 이상 10 이하의 정수가 아닌 경우 -2를 반환합니다.
-  */
-}
-
-int
-setmonopoly(int pid, int password)
-{
-  /**
-   * 특정 pid를 가진 프로세스를 MoQ로 이동합니다. 인자로 독점 자격을 증명할 암호(자신의 학번)을 받습니다.
-   * 암호가 일치할 경우, MoQ를 반환합니다.
-   * 존재하지 않는 포르세스의 pid인 경우 -1을 반환합니다.
-   * 암호가 일치하지 않는 경우 -2를 반환합니다.
-   * 이미 MoQ에 존재하는 프로세스인 경우 -3을 반환합니다.
-   * 자기 자신을 MoQ로 이동시키려 하는 경우 -4를 반환합니다.
-  */
-}
-
-void
-monopolize(void)
-{
-  /**
-   * MoQ의 프로세스가 CPU를 독점하여 사용하도록 설정합니다.
-  */
-}
-
-void
-unmonopolize(void)
-{
-  /**
-   * 독점적 스케줄링을 중지하고 기존의 MLFQ part로 돌아갑니다.
-  */
-}
-
-// Additionally added system calls by me
+// Additionally added kernel functions by me
 
 // Initialize mlfq(extern struct)
 void
@@ -791,9 +765,10 @@ putintoL3(struct proc *p)
   int indextoput = 0;
   int i;
   for(i = qlength - 1; i >= 0; i--){  // L3의 맨 오른쪽(뒤) 프로세스부터 비교하면서 들어갈 위치 찾기
-    if(priority <= mlfq.queues[3][i]) // 집어넣을 프로세스의 priority가 더 작으면 그 칸 오른쪽에 넣기
+    if(priority <= mlfq.queues[3][i]->priority){ // 집어넣을 프로세스의 priority가 더 작으면 그 칸 오른쪽에 넣기
       indextoput = i + 1;
       break;
+    }
   }
   // if문에서 안걸렸으면 priority = 0으로 설정한 초기값으로 유지됨. 제일 크다는 의미
   // 이제 오른쪽으로 한칸씩 옮겨 indextoput에 빈자리를 만들어아햠(집어넣기 위해)
