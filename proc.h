@@ -68,7 +68,6 @@ struct proc {
 
 // Multi Level Feedback Queue structure
 typedef struct {
-  struct spinlock lock;
   struct proc* queues[NQUEUE][NPROC];  // Process queues (4 levels)
   uint qlengths[NQUEUE];               // Count of processes in each queue
   uint timequantums[NQUEUE];            // Time quantum of each process

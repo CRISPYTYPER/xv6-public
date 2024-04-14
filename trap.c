@@ -124,9 +124,7 @@ trap(struct trapframe *tf)
   // Also, if a process is in moq, timer interrupt doesn't happen.
   if(myproc() && myproc()->state == RUNNING &&
      tf->trapno == T_IRQ0+IRQ_TIMER && myproc()->ismoq == 0){ // ismoq 여부 체크해서 만약 moq proc이면 인터럽트 안시켜야함
-      acquire(&mlfq.lock);
       if(myproc()->usedtq == mlfq.timequantums[myproc()->qnum]){ // 시간 다 사용
-      release(&mlfq.lock);
         switch(myproc()->qnum){  // the queue number where myproc() is in
           // 스케쥴러에서 골라질 때 이미 레디큐에서 빼놔서 집어넣기만 하면 됨.
           case 0: // L0 큐에서 실행되던 프로세스인 경우
@@ -162,7 +160,6 @@ trap(struct trapframe *tf)
   // Global tick이 100ticks가 될 때 마다 모든 프로세스들을 L0 큐로 재조정하기 & 모든 프로세스들의 timequantum 초기화하기
   // moq가 비어있어야만 priority boosting 발생
   if(tf->trapno == T_IRQ0+IRQ_TIMER && ticks % 100 == 0 && mlfq.ismonopolized == 0){
-    acquire(&mlfq.lock);
     // 먼저 L0에 있는 프로세스들의 tq 0으로 초기화
     int i;
     uint curprocidxL0 = mlfq.curprocidx[0]; // L0큐의 첫 프로세스가 있는 인덱스
@@ -205,7 +202,6 @@ trap(struct trapframe *tf)
     }
     if(mlfq.qlengths[3] != 0)  // for debugging
       panic("Size of L3 not 0 when gloabl boosting!");
-    release(&mlfq.lock);
   } 
 
   // Check if the process has been killed since we yielded

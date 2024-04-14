@@ -396,9 +396,8 @@ scheduler(void)
     // Enable interrupts on this processor.
     sti();
 
-
+    acquire(&ptable.lock);
     // Loop over mlfq.queues looking for process to run.
-    acquire(&mlfq.lock);
     if(mlfq.ismonopolized == 0){ // monopolize() 가 꺼져있으면
       int i;
       for(i = 0; i < NQUEUE; i++){ // loop through L0 ~ L3
@@ -462,17 +461,13 @@ scheduler(void)
         // It should have changed its p->state before coming back.
         c->proc = 0;
         if(mlfq.moqlength == 0){  // 모든 프로세스들이 종료된 경우
-          release(&mlfq.lock);
           unmonopolize();
-          acquire(&mlfq.lock);
         }
       }else {  // MoQ의 길이가 0인 상태에서 monopolize가 실행되었으면
-        release(&mlfq.lock);
         unmonopolize();
-        acquire(&mlfq.lock);
       }
     }
-    release(&mlfq.lock);
+    release(&ptable.lock);
   }
 }
 
@@ -693,8 +688,6 @@ procdump(void)
 void
 mlfqinit()
 {
-  initlock(&mlfq.lock, "mlfq");
-
   int i, j;
 
   for (i = 0; i < NQUEUE; i++){
@@ -718,12 +711,10 @@ void _putintomlfq(struct proc *p, int targetqueue)
 {
   struct proc *np = p;  // new process to put into L{targetqueue}
 
-  acquire(&mlfq.lock);  // acquire lock of mlfq structure
   uint indextoput = (mlfq.curprocidx[targetqueue] + mlfq.qlengths[targetqueue]) % NPROC; // index of L{taretqueue} to put a new process
   
   mlfq.queues[targetqueue][indextoput] = np;  // append pointer of the new process into L{targetqueue}
   mlfq.qlengths[targetqueue] += 1;  // increment num of processes in L{targetqueue} by 1
-  release(&mlfq.lock);  // release lock of mlfq structure
   
   np->qnum = targetqueue;  // Set current queue number as targetqueue (L{targetqueue})
   np->usedtq = 0;  // Set used tick value to 0.
@@ -758,7 +749,6 @@ putintoL3(struct proc *p)
   struct proc *np = p;  // new process to put into L3
   uint priority = np->priority;   // priority of the new process
 
-  acquire(&mlfq.lock);  // acquire lock of mlfq structure
   uint qlength = mlfq.qlengths[3];  // number of processes in L3
   int indextoput = 0;
   int i;
@@ -777,7 +767,6 @@ putintoL3(struct proc *p)
   mlfq.queues[3][indextoput] = np;
 
   mlfq.qlengths[3] += 1;  // increment num of processes in L3 by 1
-  release(&mlfq.lock);  // release lock of mlfq structure
   
   np->qnum = 3;  // Set current queue number as 3 (L3)
   np->usedtq = 0;  // Set used tick value to 0.
@@ -820,7 +809,6 @@ setmonopoly(int pid)
         return -3;  // 이미 MoQ에 존재하는 프로세스인 경우 -3을 반환
       } else{  // CPU가 한개이므로 내가 실행될 일은 없음 따라서 RUNNING은 아님
         // TODO: RUNNABLE 프로세스였으면 먼저 그 큐(MLFQ)에서 뺐어야함
-        acquire(&mlfq.lock);
         switch(p->qnum){
           case 0: { // L0에 있던 프로세스를 빼야함
             uint curprocidx = mlfq.curprocidx[0];
@@ -905,7 +893,6 @@ setmonopoly(int pid)
         mlfq.moq[mlfq.moqlength] = p;
         mlfq.moqlength++;
         p->ismoq = 1;
-        release(&mlfq.lock);
         release(&ptable.lock);
         return 0;
       }
@@ -921,9 +908,7 @@ setmonopoly(int pid)
 int
 monopolize(void)
 {
-  acquire(&mlfq.lock);
   mlfq.ismonopolized = 1;
-  release(&mlfq.lock);
   return 0;
 }
 
@@ -931,9 +916,7 @@ monopolize(void)
 int
 unmonopolize(void)
 {
-  acquire(&mlfq.lock);
   mlfq.ismonopolized = 0;
   ticks = 0; // global tick 0으로 초기화
-  release(&mlfq.lock);
   return 0;
 }
