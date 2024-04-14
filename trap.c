@@ -59,7 +59,9 @@ trap(struct trapframe *tf)
       acquire(&tickslock);
       ticks++;
       // For Project 02
-      myproc()->usedtq += 1;  // Increment timequantum of running process by 1
+      if(myproc() != 0 && myproc()->state == RUNNING){
+        myproc()->usedtq += 1;  // Increment timequantum of running process by 1
+      }
       wakeup(&ticks);
       release(&tickslock);
     }
