@@ -13,20 +13,7 @@ struct {
 } ptable;
 
 // For Project02
-// Multi Level Feedback Queue structure
-typedef struct {
-  struct spinlock lock;
-  struct proc* queues[NQUEUE][NPROC];  // Process queues (4 levels)
-  uint qlengths[NQUEUE];               // Count of processes in each queue
-  uint timequantums[NQUEUE];            // Time quantum of each process
-  uint curprocidx[NQUEUE];              // Current idx in each queue where to run(increment by 1 as proceeds. not used in L3)
-
-  struct proc* moq[NPROC];  // MOQ
-  uint moqlength;           // length of moq
-  int ismonopolized;        // if monopolize() is on
-} mlfq_t;
-
-extern mlfq_t mlfq;
+mlfq_t mlfq;
 
 static struct proc *initproc;
 
@@ -405,7 +392,6 @@ scheduler(void)
   struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
-  
   for(;;){
     // Enable interrupts on this processor.
     sti();
@@ -414,7 +400,6 @@ scheduler(void)
     // Loop over mlfq.queues looking for process to run.
     acquire(&mlfq.lock);
     if(mlfq.ismonopolized == 0){ // monopolize() 가 꺼져있으면
-
       int i;
       for(i = 0; i < NQUEUE; i++){ // loop through L0 ~ L3
         if(mlfq.qlengths[i] == 0) // L0 큐부터 살펴보면서 빈큐는 건너뛰기
@@ -476,10 +461,11 @@ scheduler(void)
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         c->proc = 0;
-        if(mlfq.moqlength == 0)  // 모든 프로세스들이 종료된 경우
+        if(mlfq.moqlength == 0){  // 모든 프로세스들이 종료된 경우
           release(&mlfq.lock);
           unmonopolize();
           acquire(&mlfq.lock);
+        }
       }else {  // MoQ의 길이가 0인 상태에서 monopolize가 실행되었으면
         release(&mlfq.lock);
         unmonopolize();
@@ -707,8 +693,6 @@ procdump(void)
 void
 mlfqinit()
 {
-  mlfq_t mlfq; // allocates memory for mlfq(extern struct)
-
   initlock(&mlfq.lock, "mlfq");
 
   int i, j;
@@ -838,7 +822,7 @@ setmonopoly(int pid)
         // TODO: RUNNABLE 프로세스였으면 먼저 그 큐(MLFQ)에서 뺐어야함
         acquire(&mlfq.lock);
         switch(p->qnum){
-          case 0: // L0에 있던 프로세스를 빼야함
+          case 0: { // L0에 있던 프로세스를 빼야함
             uint curprocidx = mlfq.curprocidx[0];
             uint qlength = mlfq.qlengths[0];
 
@@ -856,7 +840,8 @@ setmonopoly(int pid)
             }
             mlfq.qlengths[0]--;
             break; // case 0 end
-          case 1:  // L1에 있던 프로세스를 빼야함
+          }
+          case 1: { // L1에 있던 프로세스를 빼야함
             uint curprocidx = mlfq.curprocidx[1];
             uint qlength = mlfq.qlengths[1];
 
@@ -874,7 +859,8 @@ setmonopoly(int pid)
             }
             mlfq.qlengths[1]--;
             break; // case 1 end
-          case 2:  // L2에 있던 프로세스를 빼야함
+          }
+          case 2: { // L2에 있던 프로세스를 빼야함
             uint curprocidx = mlfq.curprocidx[2];
             uint qlength = mlfq.qlengths[2];
 
@@ -892,7 +878,8 @@ setmonopoly(int pid)
             }
             mlfq.qlengths[2]--;
             break; // case 2 end
-          case 3:  // L3에 있던 프로세스를 빼야함
+          }
+          case 3: { // L3에 있던 프로세스를 빼야함
             // L3는 프로세스의 맨 앞(0)부터 실행이 되기때문에 curprocidx가 필요 없음
             uint qlength = mlfq.qlengths[3];
 
@@ -908,6 +895,7 @@ setmonopoly(int pid)
             }
             mlfq.qlengths[3]--;
             break; // case 3 end
+          }
           default:
             panic("invalid qnum in setmonopoly()!");
         }

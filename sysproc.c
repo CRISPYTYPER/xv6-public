@@ -152,7 +152,7 @@ sys_setpriority(void)
   if(priority < 0 || priority > 10)
     return -2;  // priority가 0 이상 10 이하의 정수가 아닌 경우 -2를 반환
 
-  return setprioriy(pid, priority);  // proc.c
+  return setpriority(pid, priority);  // proc.c
 }
 
 int
