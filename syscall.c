@@ -108,6 +108,11 @@ extern int sys_getppid(void);
 extern int sys_getgpid(void);
 extern int sys_yield(void);
 extern int sys_print_ticks_pid_name(void);
+extern int sys_getlev(void);
+extern int sys_setpriority(void);
+extern int sys_setmonopoly(void);
+extern int sys_monopolize(void);
+extern int sys_unmonopolize(void);
 
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -136,6 +141,11 @@ static int (*syscalls[])(void) = {
 [SYS_getgpid] sys_getgpid,
 [SYS_yield] sys_yield,
 [SYS_print_ticks_pid_name] sys_print_ticks_pid_name,
+[SYS_getlev] sys_getlev,
+[SYS_setpriority] sys_setpriority,
+[SYS_setmonopoly] sys_setmonopoly,
+[SYS_monopolize] sys_monopolize,
+[SYS_unmonopolize] sys_unmonopolize,
 };
 
 void

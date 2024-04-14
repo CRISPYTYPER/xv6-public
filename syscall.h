@@ -25,3 +25,8 @@
 #define SYS_getgpid 24
 #define SYS_yield 25
 #define SYS_print_ticks_pid_name 26
+#define SYS_getlev 27
+#define SYS_setpriority 28
+#define SYS_setmonopoly 29
+#define SYS_monopolize 30
+#define SYS_unmonopolize 31
