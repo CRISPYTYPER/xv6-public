@@ -7,14 +7,9 @@
 #include "proc.h"
 #include "spinlock.h"
 
-struct {
-  struct spinlock lock;
-  struct proc proc[NPROC];
-} ptable;
+ptable_t ptable;
 
 // For Project02
-mlfq_t mlfq;
-
 static struct proc *initproc;
 
 int nextpid = 1;
@@ -26,6 +21,22 @@ static void wakeup1(void *chan);
 void
 pinit(void)
 {
+  int i, j;
+
+  for (i = 0; i < NQUEUE; i++){
+    ptable.qlengths[i] = 0;  // initialize number of processes in each queue
+    ptable.timequantums[i] = 2 * (i + 1);  // set time quantums
+    ptable.curprocidx[i] = 0;  // set idx to search as 0
+    for (j = 0; j < NPROC; j++){
+      ptable.queues[i][j] = 0;  // set each as NULL
+    }
+  }
+  // Initialize moq related members of mlfq struct
+  for(i = 0; i < NPROC; i++){
+    ptable.moq[i] = 0;
+  }
+  ptable.moqlength = 0;
+  ptable.ismonopolized = 0;
   initlock(&ptable.lock, "ptable");
 }
 
@@ -397,31 +408,31 @@ scheduler(void)
     sti();
 
     acquire(&ptable.lock);
-    // Loop over mlfq.queues looking for process to run.
-    if(mlfq.ismonopolized == 0){ // monopolize() 가 꺼져있으면
+    // Loop over ptable.queues looking for process to run.
+    if(ptable.ismonopolized == 0){ // monopolize() 가 꺼져있으면
       int i;
       for(i = 0; i < NQUEUE; i++){ // loop through L0 ~ L3
-        if(mlfq.qlengths[i] == 0) // L0 큐부터 살펴보면서 빈큐는 건너뛰기
+        if(ptable.qlengths[i] == 0) // L0 큐부터 살펴보면서 빈큐는 건너뛰기
           continue;
         if(i == 3){ // L3의 경우 삽입시 그냥 priority가 높은 프로세스가 배열 맨 앞에 오도록 만들어 놓음.
-          p = mlfq.queues[i][0]; // L3 큐의 맨 앞의 프로세스가 제일 priority가 높으니 고름
+          p = ptable.queues[i][0]; // L3 큐의 맨 앞의 프로세스가 제일 priority가 높으니 고름
           // 이론 상, 스케쥴러가 해당 프로세스를 선택했으면 Ready 큐를 빠져 나가니까, mlfq에서 빼놓는 식으로 구현하기.
           int j;
-          for(j = 1; j < mlfq.qlengths[3]; j++){ // 1번 인덱스의 프로세스 부터 끝까지 왼쪽으로 한칸씩 당김
-            mlfq.queues[3][j-1] = mlfq.queues[3][j];
+          for(j = 1; j < ptable.qlengths[3]; j++){ // 1번 인덱스의 프로세스 부터 끝까지 왼쪽으로 한칸씩 당김
+            ptable.queues[3][j-1] = ptable.queues[3][j];
           }
-          mlfq.qlengths[3]--; // 일단 현재 실행된 프로세스가 빠져나갔으니 개수 하나를 감소시킴. 
+          ptable.qlengths[3]--; // 일단 현재 실행된 프로세스가 빠져나갔으니 개수 하나를 감소시킴. 
           // timer interrupt가 발생하면(아직 안끝났다는 의미이니, 거기서(trap()) 다시 L3에 집어넣기)
           
         }else{  // L0, L1, L2 큐의 경우 RR 정책을 따르므로 curprocidx 사용
           // 프로세스가 들어있는 큐를 L0에서부터 시작해 찾았다면 해당 큐의 curprocidx번째 프로세스를 실행해야함.
-          p = mlfq.queues[i][mlfq.curprocidx[i]]; // 해당 큐에서 제일 우선순위가 높았던(제일 먼저 들어왔던)프로세스를 p에 담음
+          p = ptable.queues[i][ptable.curprocidx[i]]; // 해당 큐에서 제일 우선순위가 높았던(제일 먼저 들어왔던)프로세스를 p에 담음
 
-          mlfq.curprocidx[i] += 1; // 다음에는 그 다음번 프로세스 부터 실행하면 됨
-          if(mlfq.curprocidx[i] == NPROC)
-            mlfq.curprocidx[i] = 0;  // 리스트의 범위를 벗어났으면 다시 0으로 만듬.
+          ptable.curprocidx[i] += 1; // 다음에는 그 다음번 프로세스 부터 실행하면 됨
+          if(ptable.curprocidx[i] == NPROC)
+            ptable.curprocidx[i] = 0;  // 리스트의 범위를 벗어났으면 다시 0으로 만듬.
           // 마찬가지로 여기서도 스케쥴러에서 골라지면 해당 레디큐를 빠져나가도록 구현
-          mlfq.qlengths[i]--;  // 해당 큐의 프로세스 개수를 하나 줄임.
+          ptable.qlengths[i]--;  // 해당 큐의 프로세스 개수를 하나 줄임.
         }
         // Switch to chosen process.  It is the process's job
         // to release ptable.lock and then reacquire it
@@ -438,14 +449,14 @@ scheduler(void)
         c->proc = 0;
       }  // end of for(i = 0; i < NQUEUE; i++)
 
-    } else{ // if(mlfq.ismonopolized == 1) monopolize()가 켜져있으면
-      if(mlfq.moqlength > 0){
-        p = mlfq.moq[0]; // moq의 맨 앞 프로세스를 실행할 프로세스로 선택
+    } else{ // if(ptable.ismonopolized == 1) monopolize()가 켜져있으면
+      if(ptable.moqlength > 0){
+        p = ptable.moq[0]; // moq의 맨 앞 프로세스를 실행할 프로세스로 선택
         int i;
-        for(i = 1; i < mlfq.moqlength; i++){ // 그 오른쪽 프로세스부터 한칸씩 앞으로 당기기
-          mlfq.moq[i - 1] = mlfq.moq[i];
+        for(i = 1; i < ptable.moqlength; i++){ // 그 오른쪽 프로세스부터 한칸씩 앞으로 당기기
+          ptable.moq[i - 1] = ptable.moq[i];
         }
-        mlfq.moqlength--; // moq의 길이 1 감소
+        ptable.moqlength--; // moq의 길이 1 감소
 
         // Switch to chosen process.  It is the process's job
         // to release ptable.lock and then reacquire it
@@ -460,11 +471,15 @@ scheduler(void)
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         c->proc = 0;
-        if(mlfq.moqlength == 0){  // 모든 프로세스들이 종료된 경우
+        if(ptable.moqlength == 0){  // 모든 프로세스들이 종료된 경우
+          release(&ptable.lock);
           unmonopolize();
+          acquire(&ptable.lock);
         }
       }else {  // MoQ의 길이가 0인 상태에서 monopolize가 실행되었으면
+        release(&ptable.lock);
         unmonopolize();
+        acquire(&ptable.lock);
       }
     }
     release(&ptable.lock);
@@ -582,12 +597,12 @@ wakeup1(void *chan)
       // 깨어났으면 다시 sleep 전 해당 그 큐로 보내는 정책을 사용할 예정임
       if(p->ismoq == 1){ // moq의 프로세스였던 경우
         int i;
-        for(i = mlfq.moqlength - 1; i >= 0; i--){
-          mlfq.moq[i + 1] = mlfq.moq[i]; // 한칸씩 오른쪽으로 당기기
+        for(i = ptable.moqlength - 1; i >= 0; i--){
+          ptable.moq[i + 1] = ptable.moq[i]; // 한칸씩 오른쪽으로 당기기
         }
         // moq의 맨 앞자리에 다시 집어넣기
-        mlfq.moq[0] = p;
-        mlfq.moqlength++; // moq의 길이 1 늘리기
+        ptable.moq[0] = p;
+        ptable.moqlength++; // moq의 길이 1 늘리기
       } else { // 일반 mlfq의 프로세스였던 경우
         // usedtq는 각 putintoL{qnum}에서 0으로 다시 초기화해줌. (다시 배정시 뒤로 밀리기 때문에 사용시간을 더 배정하여 공정성을 맞춤)
         int qnum = p->qnum; // sleep 이전에 위치해있던 mlfq의 큐 번호
@@ -684,37 +699,16 @@ procdump(void)
 
 // Additionally added kernel functions by me
 
-// Initialize mlfq(extern struct)
-void
-mlfqinit()
-{
-  int i, j;
-
-  for (i = 0; i < NQUEUE; i++){
-    mlfq.qlengths[i] = 0;  // initialize number of processes in each queue
-    mlfq.timequantums[i] = 2 * (i + 1);  // set time quantums
-    mlfq.curprocidx[i] = 0;  // set idx to search as 0
-    for (j = 0; j < NPROC; j++){
-      mlfq.queues[i][j] = 0;  // set each as NULL
-    }
-  }
-  // Initialize moq related members of mlfq struct
-  for(i = 0; i < NPROC; i++){
-    mlfq.moq[i] = 0;
-  }
-  mlfq.moqlength = 0;
-  mlfq.ismonopolized = 0;
-}
 
 // Generic function to append a process into a given Queue level
 void _putintomlfq(struct proc *p, int targetqueue)
 {
   struct proc *np = p;  // new process to put into L{targetqueue}
 
-  uint indextoput = (mlfq.curprocidx[targetqueue] + mlfq.qlengths[targetqueue]) % NPROC; // index of L{taretqueue} to put a new process
+  uint indextoput = (ptable.curprocidx[targetqueue] + ptable.qlengths[targetqueue]) % NPROC; // index of L{taretqueue} to put a new process
   
-  mlfq.queues[targetqueue][indextoput] = np;  // append pointer of the new process into L{targetqueue}
-  mlfq.qlengths[targetqueue] += 1;  // increment num of processes in L{targetqueue} by 1
+  ptable.queues[targetqueue][indextoput] = np;  // append pointer of the new process into L{targetqueue}
+  ptable.qlengths[targetqueue] += 1;  // increment num of processes in L{targetqueue} by 1
   
   np->qnum = targetqueue;  // Set current queue number as targetqueue (L{targetqueue})
   np->usedtq = 0;  // Set used tick value to 0.
@@ -749,11 +743,11 @@ putintoL3(struct proc *p)
   struct proc *np = p;  // new process to put into L3
   uint priority = np->priority;   // priority of the new process
 
-  uint qlength = mlfq.qlengths[3];  // number of processes in L3
+  uint qlength = ptable.qlengths[3];  // number of processes in L3
   int indextoput = 0;
   int i;
   for(i = qlength - 1; i >= 0; i--){  // L3의 맨 오른쪽(뒤) 프로세스부터 비교하면서 들어갈 위치 찾기
-    if(priority <= mlfq.queues[3][i]->priority){ // 집어넣을 프로세스의 priority가 더 작으면 그 칸 오른쪽에 넣기
+    if(priority <= ptable.queues[3][i]->priority){ // 집어넣을 프로세스의 priority가 더 작으면 그 칸 오른쪽에 넣기
       indextoput = i + 1;
       break;
     }
@@ -761,12 +755,12 @@ putintoL3(struct proc *p)
   // if문에서 안걸렸으면 priority = 0으로 설정한 초기값으로 유지됨. 제일 크다는 의미
   // 이제 오른쪽으로 한칸씩 옮겨 indextoput에 빈자리를 만들어아햠(집어넣기 위해)
   for(i = qlength - 1; i >= indextoput; i--){
-    mlfq.queues[3][i + 1] = mlfq.queues[3][i];
+    ptable.queues[3][i + 1] = ptable.queues[3][i];
   }
   // indextoput에 생긴 빈 자리에 새로운 프로세스 집어넣기
-  mlfq.queues[3][indextoput] = np;
+  ptable.queues[3][indextoput] = np;
 
-  mlfq.qlengths[3] += 1;  // increment num of processes in L3 by 1
+  ptable.qlengths[3] += 1;  // increment num of processes in L3 by 1
   
   np->qnum = 3;  // Set current queue number as 3 (L3)
   np->usedtq = 0;  // Set used tick value to 0.
@@ -809,79 +803,80 @@ setmonopoly(int pid)
         return -3;  // 이미 MoQ에 존재하는 프로세스인 경우 -3을 반환
       } else{  // CPU가 한개이므로 내가 실행될 일은 없음 따라서 RUNNING은 아님
         // TODO: RUNNABLE 프로세스였으면 먼저 그 큐(MLFQ)에서 뺐어야함
+        cprintf("qnum: %d\n",p->qnum);
         switch(p->qnum){
           case 0: { // L0에 있던 프로세스를 빼야함
-            uint curprocidx = mlfq.curprocidx[0];
-            uint qlength = mlfq.qlengths[0];
+            uint curprocidx = ptable.curprocidx[0];
+            uint qlength = ptable.qlengths[0];
 
             int i;
             int isfound = 0; // p를 발견했는지 여부
             for(i = 0; i < qlength; i++){ // L0큐에서 p를 찾아야함
               if(isfound == 1){  // 이 전에 p를 찾았으면 그 이후부터는 왼쪽으로 한칸씩 당김
-                mlfq.queues[0][curprocidx + i - 1] = mlfq.queues[0][curprocidx + i];
+                ptable.queues[0][curprocidx + i - 1] = ptable.queues[0][curprocidx + i];
               }
-              if(mlfq.queues[0][curprocidx + i] == p){ // 상대 index i 에 있는 p를 찾았으면
+              if(ptable.queues[0][curprocidx + i] == p){ // 상대 index i 에 있는 p를 찾았으면
                 if(i == 0) // 만약 curprocidx위치에 있던 프로세스를 옮겨야 하면, curprocidx를 오른쪽으로 한칸 이동
-                  mlfq.curprocidx[0]++;
+                  ptable.curprocidx[0]++;
                 isfound = 1;
               }
             }
-            mlfq.qlengths[0]--;
+            ptable.qlengths[0]--;
             break; // case 0 end
           }
           case 1: { // L1에 있던 프로세스를 빼야함
-            uint curprocidx = mlfq.curprocidx[1];
-            uint qlength = mlfq.qlengths[1];
+            uint curprocidx = ptable.curprocidx[1];
+            uint qlength = ptable.qlengths[1];
 
             int i;
             int isfound = 0; // p를 발견했는지 여부
             for(i = 0; i < qlength; i++){ // L1큐에서 p를 찾아야함
               if(isfound == 1){  // 이 전에 p를 찾았으면 그 이후부터는 왼쪽으로 한칸씩 당김
-                mlfq.queues[1][curprocidx + i - 1] = mlfq.queues[1][curprocidx + i];
+                ptable.queues[1][curprocidx + i - 1] = ptable.queues[1][curprocidx + i];
               }
-              if(mlfq.queues[1][curprocidx + i] == p){ // 상대 index i 에 있는 p를 찾았으면
+              if(ptable.queues[1][curprocidx + i] == p){ // 상대 index i 에 있는 p를 찾았으면
                 if(i == 0) // 만약 curprocidx위치에 있던 프로세스를 옮겨야 하면, curprocidx를 오른쪽으로 한칸 이동
-                  mlfq.curprocidx[1]++;
+                  ptable.curprocidx[1]++;
                 isfound = 1;
               }
             }
-            mlfq.qlengths[1]--;
+            ptable.qlengths[1]--;
             break; // case 1 end
           }
           case 2: { // L2에 있던 프로세스를 빼야함
-            uint curprocidx = mlfq.curprocidx[2];
-            uint qlength = mlfq.qlengths[2];
+            uint curprocidx = ptable.curprocidx[2];
+            uint qlength = ptable.qlengths[2];
 
             int i;
             int isfound = 0; // p를 발견했는지 여부
             for(i = 0; i < qlength; i++){ // L2큐에서 p를 찾아야함
               if(isfound == 1){  // 이 전에 p를 찾았으면 그 이후부터는 왼쪽으로 한칸씩 당김
-                mlfq.queues[2][curprocidx + i - 1] = mlfq.queues[2][curprocidx + i];
+                ptable.queues[2][curprocidx + i - 1] = ptable.queues[2][curprocidx + i];
               }
-              if(mlfq.queues[2][curprocidx + i] == p){ // 상대 index i 에 있는 p를 찾았으면
+              if(ptable.queues[2][curprocidx + i] == p){ // 상대 index i 에 있는 p를 찾았으면
                 if(i == 0) // 만약 curprocidx위치에 있던 프로세스를 옮겨야 하면, curprocidx를 오른쪽으로 한칸 이동
-                  mlfq.curprocidx[2]++;
+                  ptable.curprocidx[2]++;
                 isfound = 1;
               }
             }
-            mlfq.qlengths[2]--;
+            ptable.qlengths[2]--;
             break; // case 2 end
           }
           case 3: { // L3에 있던 프로세스를 빼야함
             // L3는 프로세스의 맨 앞(0)부터 실행이 되기때문에 curprocidx가 필요 없음
-            uint qlength = mlfq.qlengths[3];
+            uint qlength = ptable.qlengths[3];
 
             int i;
             int isfound = 0; // p를 발견했는지 여부
             for(i = 0; i < qlength; i++){ // L3큐에서 p를 찾아야함
               if(isfound == 1){  // 이 전에 p를 찾았으면 그 이후부터는 왼쪽으로 한칸씩 당김
-                mlfq.queues[3][i - 1] = mlfq.queues[3][i];
+                ptable.queues[3][i - 1] = ptable.queues[3][i];
               }
-              if(mlfq.queues[3][i] == p){ // index i 에 있는 p를 찾았으면
+              if(ptable.queues[3][i] == p){ // index i 에 있는 p를 찾았으면
                 isfound = 1;
               }
             }
-            mlfq.qlengths[3]--;
+            ptable.qlengths[3]--;
             break; // case 3 end
           }
           default:
@@ -891,10 +886,11 @@ setmonopoly(int pid)
         // 이 위에까진 MLFQ 구조 수정
         // 이 아래부턴 MoQ 구조 수정
         p->ismoq = 1;
-        mlfq.moq[mlfq.moqlength] = p;
-        mlfq.moqlength++;
+        p->qnum = 99;
+        ptable.moq[ptable.moqlength] = p;
+        ptable.moqlength++;
         release(&ptable.lock);
-        return mlfq.moqlength;  //setmonopolize 설정에 성공한 경우 MoQ의 크기를 반환
+        return ptable.moqlength;  //setmonopolize 설정에 성공한 경우 MoQ의 크기를 반환
       }
     }
   }
@@ -906,7 +902,9 @@ setmonopoly(int pid)
 int
 monopolize(void)
 {
-  mlfq.ismonopolized = 1;
+  acquire(&ptable.lock);
+  ptable.ismonopolized = 1;
+  release(&ptable.lock);
   return 0;
 }
 
@@ -914,7 +912,11 @@ monopolize(void)
 int
 unmonopolize(void)
 {
-  mlfq.ismonopolized = 0;
+  acquire(&ptable.lock);
+  acquire(&tickslock);
+  ptable.ismonopolized = 0;
   ticks = 0; // global tick 0으로 초기화
+  release(&tickslock);
+  release(&ptable.lock);
   return 0;
 }

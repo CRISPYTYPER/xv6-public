@@ -120,11 +120,8 @@ sys_getlev(void)
    * 프로세스가 속한 큐의 레벨을 반환합니다.
    * MoQ에 속한 프로세스인 경우 99를 반환합니다.
   */
-  if(myproc()->ismoq == 0){  // 일반 mlfq에 들어있는 프로세스이면
-    return myproc()->qnum;
-  }else{  // 만약 moq에 들어있는 프로세스이면
-    return 99;
-  }
+  return myproc()->qnum;
+  
 }
 
 int

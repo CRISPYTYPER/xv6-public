@@ -186,6 +186,7 @@ int main(int argc, char *argv[])
 	  exit();
 	}
       }
+      if(x==99) printf(1, "%d\n",x);
       if(x == 99) count[4]++;
       else count[x]++;
     }

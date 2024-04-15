@@ -66,8 +66,11 @@ struct proc {
 //   fixed-size stack
 //   expandable heap
 
-// Multi Level Feedback Queue structure
-typedef struct {
+typedef struct ptable{
+  struct spinlock lock;
+  struct proc proc[NPROC];
+
+  // Multi Level Feedback Queue structure
   struct proc* queues[NQUEUE][NPROC];  // Process queues (4 levels)
   uint qlengths[NQUEUE];               // Count of processes in each queue
   uint timequantums[NQUEUE];            // Time quantum of each process
@@ -76,9 +79,9 @@ typedef struct {
   struct proc* moq[NPROC];  // MOQ
   uint moqlength;           // length of moq
   int ismonopolized;        // if monopolize() is on
-} mlfq_t;
+} ptable_t;
 
-extern mlfq_t mlfq;
+extern ptable_t ptable;
 
 // to use these in trap.c
 void putintoL0(struct proc *p);
@@ -87,7 +90,6 @@ void putintoL2(struct proc *p);
 void putintoL3(struct proc *p);
 
 // to use these in proc.c
-void mlfqinit();
 int setpriority(int pid, int priority);
 int setmonopoly(int pid);
 int monopolize(void);
