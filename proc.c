@@ -704,7 +704,6 @@ mlfqinit()
   }
   mlfq.moqlength = 0;
   mlfq.ismonopolized = 0;
-  initlock(&mlfq.lock, "mlfq");
 }
 
 // Generic function to append a process into a given Queue level
