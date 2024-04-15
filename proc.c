@@ -704,6 +704,7 @@ mlfqinit()
   }
   mlfq.moqlength = 0;
   mlfq.ismonopolized = 0;
+  initlock(&mlfq.lock, "mlfq");
 }
 
 // Generic function to append a process into a given Queue level
@@ -800,7 +801,7 @@ setmonopoly(int pid)
   acquire(&ptable.lock);
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if((p->state == RUNNING || p->state == RUNNABLE) && p->pid == pid){
+    if(p->pid == pid){
       if(myproc()->pid == p->pid){
         release(&ptable.lock);
         return -4;  // 자기 자신(RUNNING)을 MoQ로 이동시키려 하는 경우 -4를 반환
@@ -890,14 +891,12 @@ setmonopoly(int pid)
         
         // 이 위에까진 MLFQ 구조 수정
         // 이 아래부턴 MoQ 구조 수정
+        p->ismoq = 1;
         mlfq.moq[mlfq.moqlength] = p;
         mlfq.moqlength++;
-        p->ismoq = 1;
         release(&ptable.lock);
-        return 0;
+        return mlfq.moqlength;  //setmonopolize 설정에 성공한 경우 MoQ의 크기를 반환
       }
-      release(&ptable.lock);
-      return 0;  // priority 설정에 성공한 경우 0을 반환
     }
   }
   release(&ptable.lock);

@@ -147,13 +147,13 @@ trap(struct trapframe *tf)
             myproc()->usedtq = 0;
             // 스케쥴러에서 골라졌을때(RUNNING)이미 해당 레디큐에서 빠졌었음. 그래서 여기서 다시 넣어줘야함.
             putintoL3(myproc());
+            break;
 
           default:
             panic("invalid pid value!!(trap.c)");
           }
+          yield();  // give up the CPU held to myproc()
         }
-    
-      yield();  // give up the CPU held to myproc()
      }
 
   // Priority boosting
