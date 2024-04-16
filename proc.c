@@ -802,8 +802,6 @@ setmonopoly(int pid)
         release(&ptable.lock);
         return -3;  // 이미 MoQ에 존재하는 프로세스인 경우 -3을 반환
       } else{  // CPU가 한개이므로 내가 실행될 일은 없음 따라서 RUNNING은 아님
-        // TODO: RUNNABLE 프로세스였으면 먼저 그 큐(MLFQ)에서 뺐어야함
-        cprintf("qnum: %d\n",p->qnum);
         switch(p->qnum){
           case 0: { // L0에 있던 프로세스를 빼야함
             uint curprocidx = ptable.curprocidx[0];
@@ -815,7 +813,7 @@ setmonopoly(int pid)
               if(isfound == 1){  // 이 전에 p를 찾았으면 그 이후부터는 왼쪽으로 한칸씩 당김
                 ptable.queues[0][curprocidx + i - 1] = ptable.queues[0][curprocidx + i];
               }
-              if(ptable.queues[0][curprocidx + i] == p){ // 상대 index i 에 있는 p를 찾았으면
+              if(ptable.queues[0][curprocidx + i]->pid == pid){ // 상대 index i 에 있는 p를 찾았으면
                 if(i == 0) // 만약 curprocidx위치에 있던 프로세스를 옮겨야 하면, curprocidx를 오른쪽으로 한칸 이동
                   ptable.curprocidx[0]++;
                 isfound = 1;
@@ -834,7 +832,7 @@ setmonopoly(int pid)
               if(isfound == 1){  // 이 전에 p를 찾았으면 그 이후부터는 왼쪽으로 한칸씩 당김
                 ptable.queues[1][curprocidx + i - 1] = ptable.queues[1][curprocidx + i];
               }
-              if(ptable.queues[1][curprocidx + i] == p){ // 상대 index i 에 있는 p를 찾았으면
+              if(ptable.queues[1][curprocidx + i]->pid == pid){ // 상대 index i 에 있는 p를 찾았으면
                 if(i == 0) // 만약 curprocidx위치에 있던 프로세스를 옮겨야 하면, curprocidx를 오른쪽으로 한칸 이동
                   ptable.curprocidx[1]++;
                 isfound = 1;
@@ -853,7 +851,7 @@ setmonopoly(int pid)
               if(isfound == 1){  // 이 전에 p를 찾았으면 그 이후부터는 왼쪽으로 한칸씩 당김
                 ptable.queues[2][curprocidx + i - 1] = ptable.queues[2][curprocidx + i];
               }
-              if(ptable.queues[2][curprocidx + i] == p){ // 상대 index i 에 있는 p를 찾았으면
+              if(ptable.queues[2][curprocidx + i]->pid == pid){ // 상대 index i 에 있는 p를 찾았으면
                 if(i == 0) // 만약 curprocidx위치에 있던 프로세스를 옮겨야 하면, curprocidx를 오른쪽으로 한칸 이동
                   ptable.curprocidx[2]++;
                 isfound = 1;
@@ -872,7 +870,7 @@ setmonopoly(int pid)
               if(isfound == 1){  // 이 전에 p를 찾았으면 그 이후부터는 왼쪽으로 한칸씩 당김
                 ptable.queues[3][i - 1] = ptable.queues[3][i];
               }
-              if(ptable.queues[3][i] == p){ // index i 에 있는 p를 찾았으면
+              if(ptable.queues[3][i]->pid == pid){ // index i 에 있는 p를 찾았으면
                 isfound = 1;
               }
             }

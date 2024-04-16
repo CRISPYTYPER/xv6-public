@@ -141,7 +141,6 @@ trap(struct trapframe *tf)
             putintoL3(myproc());
             break;
           case 3: // L3 큐에서 실행되던 프로세스인 경우
-            // TODO: priority를 1 감소시키고, timequantum초기화. mlfq 프로세스들 재배열해야함
             if(myproc()->priority > 0)  // priority가 0에서는 더 감소하지 않음
               myproc()->priority--;
             myproc()->usedtq = 0;

@@ -171,7 +171,6 @@ int main(int argc, char *argv[])
   {
     if(pid == 36)
     {
-      printf(1, "asdfadfasdfasdfasdfasdfasdfhaha\n");
       monopolize();
       exit();
     }
